@@ -1,0 +1,27 @@
+; Engine configuration file.
+; Edit through Godot where practical; this file is intentionally minimal.
+
+config_version=5
+
+[application]
+
+config/name="Maze Engine"
+run/main_scene="res://src/app/main.tscn"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=480
+window/size/window_width_override=960
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+
+[physics]
+
+common/physics_ticks_per_second=30

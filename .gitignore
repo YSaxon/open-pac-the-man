@@ -1,0 +1,7 @@
+.godot/
+build/
+dist/
+original/
+*.log
+*-preview.png
+*-preview.png.import

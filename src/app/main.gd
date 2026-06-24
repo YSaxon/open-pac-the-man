@@ -431,7 +431,7 @@ func _add_players(source_archive: String, level, topology) -> void:
 
 
 func _add_extra_system(source_archive: String, topology) -> void:
-	extra_spawner = ExtraSpawnerScript.new(topology, TICKS_PER_SECOND, level_number + 1)
+	extra_spawner = ExtraSpawnerScript.new(topology, TICKS_PER_SECOND)
 	var entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		source_archive, "/Contents/Resources/Sprites/extra.raw"
 	)
@@ -681,7 +681,7 @@ func _step_extra() -> void:
 	extra_motion.step()
 	extra_sprite.position = extra_motion.position + Vector2(16, 16)
 	extra_sprite.region_rect = Rect2(extra_motion.animation_frame() * 32, extra_motion.extra_number * 32, 32, 32)
-	extra_sprite.rotation += deg_to_rad(3.0)
+	extra_sprite.rotation_degrees = extra_motion.rotation_degrees
 	for avatar_index in player_motions.size():
 		if not player_active[avatar_index] or not extra_motion.collides(player_motions[avatar_index].position):
 			continue
@@ -707,7 +707,6 @@ func _create_extra(cell: Vector2i, number: int) -> void:
 		cell,
 		number,
 		TICKS_PER_SECOND,
-		(level_number + 1) * 100 + extra_spawner.appeared,
 	)
 	extra_sprite = Sprite2D.new()
 	extra_sprite.texture = extra_texture

@@ -17,11 +17,14 @@ var ticks_per_second := 60
 var rng := RandomNumberGenerator.new()
 
 
-func _init(maze = null, tick_rate := 60, seed := 1) -> void:
+func _init(maze = null, tick_rate := 60, seed := -1) -> void:
 	topology = maze
 	ticks_per_second = tick_rate
 	check_ticks = tick_rate
-	rng.seed = seed
+	if seed >= 0:
+		rng.seed = seed
+	else:
+		rng.randomize()
 	if topology != null:
 		for y in topology.height():
 			for x in topology.width():
@@ -54,20 +57,17 @@ func released() -> void:
 
 
 func _spawn(player_positions: Array[Vector2]) -> Dictionary:
-	var eligible: Array[Vector2i] = []
-	for cell in candidates:
-		var pixel := PlayerMotionScript.pixel_for_cell(cell)
-		var distant := true
-		for player in player_positions:
-			if (
-				absi(pixel.x - player.x) < MINIMUM_AXIS_DISTANCE
-				or absi(pixel.y - player.y) < MINIMUM_AXIS_DISTANCE
-			):
-				distant = false
-				break
-		if distant:
-			eligible.append(cell)
-	if eligible.is_empty():
+	if candidates.is_empty():
 		return {}
-	var cell: Vector2i = eligible[rng.randi_range(0, eligible.size() - 1)]
+	# The original tests one randomly selected candidate and abandons this
+	# second's attempt when it is close to a player; it does not search for a
+	# different eligible cell.
+	var cell: Vector2i = candidates[rng.randi_range(0, candidates.size() - 1)]
+	var pixel := PlayerMotionScript.pixel_for_cell(cell)
+	for player in player_positions:
+		if (
+			absi(pixel.x - player.x) < MINIMUM_AXIS_DISTANCE
+			or absi(pixel.y - player.y) < MINIMUM_AXIS_DISTANCE
+		):
+			return {}
 	return force_spawn(cell, rng.randi_range(0, 4))

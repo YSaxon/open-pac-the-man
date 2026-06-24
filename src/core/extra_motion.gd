@@ -9,6 +9,8 @@ const LIFETIME_SECONDS := 10
 const COLLISION_AXIS_DISTANCE := 10
 const ANIMATION_FPS := 6
 const ANIMATION_SEQUENCE: Array[int] = [1, 2, 1, 0]
+const ROTATION_STEP_DEGREES := 3.0
+const ROTATION_LIMIT_DEGREES := 25.0
 
 var topology
 var position := Vector2.ZERO
@@ -17,22 +19,34 @@ var extra_number := 0
 var remaining_ticks := 0
 var frame := 0
 var ticks_per_second := 60
+var rotation_degrees := 0.0
+var rotation_direction := 1.0
 var rng := RandomNumberGenerator.new()
 
 
-func _init(maze = null, start_cell := Vector2i.ZERO, number := 0, ticks_per_second := 60, seed := 1) -> void:
+func _init(maze = null, start_cell := Vector2i.ZERO, number := 0, ticks_per_second := 60, seed := -1) -> void:
 	topology = maze
 	position = Vector2(PlayerMotionScript.pixel_for_cell(start_cell))
 	extra_number = clampi(number, 0, 4)
 	self.ticks_per_second = maxi(ticks_per_second, 1)
 	remaining_ticks = LIFETIME_SECONDS * self.ticks_per_second
-	rng.seed = seed
+	if seed >= 0:
+		rng.seed = seed
+	else:
+		rng.randomize()
 
 
 func step() -> void:
 	remaining_ticks = maxi(remaining_ticks - 1, 0)
 	for ignored in SUBSTEPS:
 		_step_pixel()
+	rotation_degrees += ROTATION_STEP_DEGREES * rotation_direction
+	if rotation_degrees >= ROTATION_LIMIT_DEGREES:
+		rotation_degrees = ROTATION_LIMIT_DEGREES
+		rotation_direction = -1.0
+	elif rotation_degrees <= -ROTATION_LIMIT_DEGREES:
+		rotation_degrees = -ROTATION_LIMIT_DEGREES
+		rotation_direction = 1.0
 	frame += 1
 
 

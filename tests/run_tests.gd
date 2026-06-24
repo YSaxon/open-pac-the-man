@@ -262,11 +262,28 @@ func _test_extras() -> void:
 	motion.step()
 	_expect(motion.animation_frame() == 2, "extra animation advances at the recovered six frames per second")
 	_expect(motion.collides(motion.position + Vector2(10, 10)), "extra collision uses recovered ten-pixel axis threshold")
+	motion.rotation_degrees = 24.0
+	motion.rotation_direction = 1.0
+	motion.step()
+	_expect(
+		motion.rotation_degrees == 25.0 and motion.rotation_direction == -1.0,
+		"extra rotation reverses at the recovered 25-degree limit",
+	)
 	var spawner = ExtraSpawnerScript.new(line, 20, 3)
 	var forced: Dictionary = spawner.force_spawn(Vector2i(1, 0), 4)
 	_expect(forced["extra_number"] == 4 and spawner.active and spawner.appeared == 1, "extra spawner tracks active and appearance limits")
 	spawner.released()
 	_expect(not spawner.active, "collected or expired extra releases active slot")
+	var single_cell = MazeTopologyScript.new(PackedStringArray(["B"]))
+	var near_spawner = ExtraSpawnerScript.new(single_cell, 1, 9)
+	for ignored in 100:
+		near_spawner.step([Vector2(PlayerMotionScript.pixel_for_cell(Vector2i.ZERO))], 60)
+	_expect(not near_spawner.active, "a selected spawn near a player is abandoned")
+	var far_spawner = ExtraSpawnerScript.new(single_cell, 1, 9)
+	for ignored in 100:
+		if not far_spawner.step([Vector2(-1000, -1000)], 60).is_empty():
+			break
+	_expect(far_spawner.active, "a distant selected spawn can appear on a later chance check")
 
 
 func _test_point_popup() -> void:

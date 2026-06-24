@@ -57,7 +57,7 @@ on that menu exits. In solo mode either arrow keys or WASD work.
 - Loads the original WAV effects and MP3 title/gameplay music directly from the archive and
   persists named top-ten scores in a versioned, mode-separated local high-score file.
 - Implements moving bonuses and the recovered per-avatar double-speed, double-score, and
-  invulnerability effects. Bonuses use their recovered three-frame six-FPS wobble and rotation;
+  invulnerability effects. Bonuses use their recovered three-frame six-FPS wobble and ±25° rocking;
   five-frame power pellets animate from elapsed time rather than display frame count.
 - Restores the original five-color bouncing point digits for eaten ghosts and bonuses, including
   double-score values, per-digit launch staggering, and the recovered 1.5-second lifetime.

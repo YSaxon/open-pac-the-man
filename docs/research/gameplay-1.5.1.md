@@ -139,6 +139,13 @@ this distinction matters for simultaneous and two-handed modes.
 
 The symbol-rich earlier build constructs each `TExtra` with a three-frame set and calls
 `TSprite::SetFrameSpeed(6.0)`. The visible order is implemented as a center/right/center/left
-wobble at six frames per second, while retaining the recovered three-degree rotation per gameplay
-update. The five-frame super-pellet strip advances from elapsed time so its loop remains stable
-when the display refresh rate changes.
+wobble at six frames per second. Rotation advances in three-degree gameplay steps but reverses at
+25 and 335 degrees, making the item rock about 25 degrees in each direction rather than spin. The
+five-frame super-pellet strip advances from elapsed time so its loop remains stable when the display
+refresh rate changes.
+
+Once per second, the original attempts to spawn an extra only while at least 60 pellets remain, no
+extra is already active, and fewer than five have appeared. The attempt has a one-in-seven chance.
+It chooses one candidate maze node and cancels the attempt if either axis is within 100 pixels of a
+player; it does not select again from only the distant nodes. The extra number is then chosen
+uniformly from zero through four using the application's shared runtime random generator.

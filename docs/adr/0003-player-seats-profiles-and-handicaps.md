@@ -59,3 +59,16 @@ The abstraction also accepts complete new sprite sets later, avoiding a dependen
 No handicap implementation is added on the main branch yet. When lobby and modifier work begins it
 should use a feature branch because it touches score, life, movement, persistence, UI, and high-score
 categorization together. The current runtime arrays and avatar/account split require no rollback.
+
+## Optional hot-seat rotation
+
+A later session policy may keep more named profiles than simultaneous avatars and rotate a waiting
+profile onto the input seat of an avatar that loses a life. Rotation happens only at the existing
+death/respawn boundary, followed by a configurable timeout or explicit ready input. The incoming
+profile keeps its own account, handicap, appearance, and statistics; only its seat/avatar assignment
+changes.
+
+This is deliberately an optional lobby/session coordinator, not behavior embedded in movement,
+death, scoring, or the original fixed-seat modes. It belongs with handicap and lobby work on a
+feature branch, and must use a separate high-score category if it produces materially different
+gameplay.

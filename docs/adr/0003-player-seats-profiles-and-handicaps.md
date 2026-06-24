@@ -23,6 +23,19 @@ The session model will keep these concepts independent:
 - `ScoreAccount`: score, reserve lives, and extra-life thresholds, already separate from avatars.
 - `PlayerAppearance`: normal, flash, death, and burst artwork plus an optional palette treatment.
 
+These are composed into a participant rather than collapsed into one gameplay node. The participant
+owns identity and run state (`PlayerProfile`, `ScoreAccount`, handicap configuration, and appearance
+selection). The in-maze `Avatar` owns only transient physical state and refers to a participant and
+an `InputSeat`. Input produces logical movement actions; it does not update score, lives, speed, or
+sprites directly. Likewise, maze code operates on an avatar and obtains participant-owned rules
+through that reference rather than assuming that avatar number, player number, and control scheme
+are the same thing.
+
+This boundary permits rebinding a seat, changing an appearance, rotating a hot-seat participant, or
+attaching multiple avatars to one score account without replacing the moving Pac-Man node. It is a
+composition boundary, not a requirement for a large inheritance hierarchy or a generalized entity
+component system.
+
 The lobby will assign seats and appearances to profiles explicitly. Swapping seats changes only
 who controls an avatar; it does not move scores or handicaps. Bindings are customizable and saved
 by seat, not hard-coded by player number.

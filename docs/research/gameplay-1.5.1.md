@@ -65,6 +65,8 @@ tests so later refactoring cannot silently change compatibility behavior.
 - The player sprite is positioned by its 32×32 top-left coordinate; its maze-node center
   is therefore `(56 + 44x, 58 + 44y)`.
 - Normal pellets are 10×10 and are placed at node centers and 22-pixel edge midpoints.
+- The midpoint pellet on the edge from the maze into the citadel is explicitly suppressed. The
+  reachable maze-node pellet immediately outside the entrance remains present.
 - Super pellets are 30×30 and are centered on the positions listed by the level.
 - A normal pellet is worth 5 points; a super pellet is worth 10 points.
 - The double-score state doubles points before adding them.

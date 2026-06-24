@@ -2,6 +2,7 @@ class_name PelletField
 extends RefCounted
 
 const MazeDirectionScript := preload("res://src/core/direction.gd")
+const MazeTopologyScript := preload("res://src/core/maze_topology.gd")
 
 const NORMAL := 1
 const SUPER := 2
@@ -16,6 +17,9 @@ var pellets: Dictionary = {}
 
 func build(level) -> void:
 	pellets.clear()
+	var topology = MazeTopologyScript.new(level.rows)
+	var citadel_entry: Vector2i = topology.citadel_entry()
+	var citadel_cell: Vector2i = topology.find_marker("R")
 	var super_cells: Dictionary = {}
 	for cell in level.super_pellets:
 		super_cells[cell] = true
@@ -28,9 +32,13 @@ func build(level) -> void:
 				continue
 			var center := node_center(cell)
 			pellets[center] = SUPER if super_cells.has(cell) else NORMAL
-			if mask & MazeDirectionScript.RIGHT:
+			if mask & MazeDirectionScript.RIGHT and not _enters_citadel(
+				cell, MazeDirectionScript.RIGHT, citadel_entry, citadel_cell
+			):
 				pellets[center + Vector2i(HALF_SPACING, 0)] = NORMAL
-			if mask & MazeDirectionScript.DOWN:
+			if mask & MazeDirectionScript.DOWN and not _enters_citadel(
+				cell, MazeDirectionScript.DOWN, citadel_entry, citadel_cell
+			):
 				pellets[center + Vector2i(0, HALF_SPACING)] = NORMAL
 
 
@@ -55,6 +63,15 @@ func remaining() -> int:
 
 static func node_center(cell: Vector2i) -> Vector2i:
 	return NODE_ORIGIN + cell * GRID_SPACING
+
+
+static func _enters_citadel(
+	cell: Vector2i,
+	direction: int,
+	citadel_entry: Vector2i,
+	citadel_cell: Vector2i,
+) -> bool:
+	return cell == citadel_entry and cell + MazeDirectionScript.vector(direction) == citadel_cell
 
 
 func _intersects(player_top_left: Vector2, pellet_center: Vector2i, type: int) -> bool:

@@ -144,6 +144,15 @@ func _test_pellets_and_score() -> void:
 	_expect(collected["points"] == 10 and collected["super"] == 1, "super pellet collision awards ten points")
 	_expect(not field.pellets.has(Vector2i(56, 58)), "collected pellet is removed")
 
+	var citadel_level = LevelDataScript.new()
+	citadel_level.rows = PackedStringArray(["L", "R"])
+	field.build(citadel_level)
+	_expect(field.pellets.has(Vector2i(56, 58)), "citadel entry keeps its reachable node pellet")
+	_expect(
+		not field.pellets.has(Vector2i(56, 80)),
+		"citadel doorway does not receive an unreachable midpoint pellet",
+	)
+
 	var score = ScoreStateScript.new()
 	score.score = 24_995
 	_expect(score.add(5) == 5 and score.lives == 4, "crossing 25,000 points awards an extra life")

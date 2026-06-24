@@ -109,6 +109,24 @@ The delay between releasing waiting ghosts is seven seconds for levels 0-7, six 
 five for 13-17, four for 18-22, and three thereafter. Each expiry releases the first waiting
 ghost. A frightened waiting ghost can be released directly into its frightened maze state.
 
+## Point popups
+
+Both frightened-ghost and extra collisions call `TGame::AddPointSprites`. The routine converts
+the awarded value to digits after applying double-score, centers it using recovered glyph widths
+`16, 12, 16, 16, 18, 16, 16, 16`, and constructs one `TPoints` sprite per digit from
+`points.raw`. The 144×105 sheet contains eight 18×21 digit frames (`0`–`6` and `8`) in five
+color rows. Successive awards rotate through those five colors.
+
+Each digit starts ten pixels below the collision coordinate and launches at -14 velocity after a
+two-frame-per-digit stagger. `TSprite::MoveXY` applies the 0.5 animation speed factor and
+`TPoints::Move` adds 0.5 gravity each 60 Hz animation frame. The digit settles six pixels below
+the collision coordinate and the sprite expires after 90 frames (1.5 seconds).
+
+The ghost collision path does not install a global delay or slow-motion timer. It clears the
+colliding player and ghost's per-update movement flag after creating the popup; their next `Move`
+calls restore it. This produces at most a single display-update interruption, not a sustained game
+pause, so the remake does not add an artificial freeze.
+
 ## Player extras
 
 The five numbered extras award 500, 1000, 2000, 3000, and 5000 points. Extra 0 enables double

@@ -5,6 +5,7 @@ const REQUIRED_SUFFIXES := [
 	"/Contents/MacOS/Pac the Man X",
 	"/Contents/Resources/Levels/The X Levels.plist",
 	"/Contents/Resources/Sprites/player1.raw",
+	"/Contents/Resources/Sprites/points.raw",
 ]
 
 static var _readers_by_path: Dictionary = {}

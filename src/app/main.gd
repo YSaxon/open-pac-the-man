@@ -22,6 +22,7 @@ const ExtraSpawnerScript := preload("res://src/core/extra_spawner.gd")
 const HighScoreStoreScript := preload("res://src/core/high_score_store.gd")
 const SessionRulesScript := preload("res://src/core/session_rules.gd")
 const WavAudioScript := preload("res://src/import/wav_audio.gd")
+const PointPopupViewScript := preload("res://src/presentation/point_popup_view.gd")
 
 const TICKS_PER_SECOND := 30
 const FRIGHTENED_DURATION_TICKS := 8 * TICKS_PER_SECOND
@@ -89,6 +90,9 @@ var current_music_name := ""
 var music_enabled := true
 var pellet_sound_alternate := false
 var name_entry_active := false
+var point_texture: Texture2D
+var point_popup_color := 0
+var point_popups: Array = []
 
 
 func _ready() -> void:
@@ -117,6 +121,12 @@ func _ready() -> void:
 	if not qa_extra.is_empty():
 		var forced: Dictionary = extra_spawner.force_spawn(player_start_cell, int(qa_extra))
 		_create_extra(forced["cell"], forced["extra_number"])
+	var qa_points := _argument_value("--qa-points=")
+	if not qa_points.is_empty():
+		round_start_ticks = 0
+		if ready_sprite != null:
+			ready_sprite.visible = false
+		_spawn_point_popup(player_motion.position, int(qa_points))
 	var qa_death_frame := _argument_value("--qa-death-frame=")
 	if not qa_death_frame.is_empty():
 		round_start_ticks = 0
@@ -167,6 +177,8 @@ func _start_level(index: int) -> void:
 	_clear_level()
 	level_number = index
 	var level = levels[level_number]
+	if point_texture == null:
+		point_texture = _load_raw_texture("/Contents/Resources/Sprites/points.raw")
 	_add_background(archive_path, level.background)
 	var maze = MazeViewScript.new()
 	level_root.add_child(maze)
@@ -229,6 +241,7 @@ func _clear_level() -> void:
 	ghost_sprites.clear()
 	ghosts_eaten = 0
 	level_transition_ticks = 0
+	point_popups.clear()
 
 
 func _archive_path() -> String:
@@ -559,6 +572,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _physics_process(_delta: float) -> void:
 	if menu_active or paused_game or player_motion == null or player_sprite == null or game_over or game_finished:
 		return
+	_step_point_popups()
 	if level_transition_pending:
 		level_transition_ticks -= 1
 		if level_transition_ticks <= 0:
@@ -676,8 +690,9 @@ func _step_extra() -> void:
 		var double_before: bool = effects.double_score
 		var points: int = effects.apply_extra(extra_motion.extra_number, TICKS_PER_SECOND)
 		account.double_score = double_before
-		_award_score_for_avatar(avatar_index, points)
+		var awarded := _award_score_for_avatar(avatar_index, points)
 		account.double_score = effects.double_score
+		_spawn_point_popup(player_motions[avatar_index].position, awarded)
 		_play_sound("extra_eaten")
 		_remove_extra()
 		_update_status()
@@ -725,10 +740,11 @@ func _handle_ghost_collisions() -> void:
 			)
 			if result == GhostCollisionScript.GHOST_EATEN:
 				motion.start_returning()
-				_award_score_for_avatar(
+				var awarded := _award_score_for_avatar(
 					avatar_index,
 					ScoreStateScript.ghost_points(level_number, ghosts_eaten_by_avatar[avatar_index]),
 				)
+				_spawn_point_popup(player_motions[avatar_index].position, awarded)
 				ghosts_eaten_by_avatar[avatar_index] += 1
 				_play_sound("eat_ghost")
 				_update_status()
@@ -1021,6 +1037,26 @@ func _award_score_for_avatar(avatar_index: int, points: int) -> int:
 	if account.lives > old_lives:
 		_play_sound("extra_life")
 	return awarded
+
+
+func _spawn_point_popup(collision_position: Vector2, points: int) -> void:
+	if point_texture == null or points <= 0:
+		return
+	var popup = PointPopupViewScript.new()
+	level_root.add_child(popup)
+	popup.show_points(point_texture, points, collision_position, point_popup_color)
+	point_popups.append(popup)
+	point_popup_color = (point_popup_color + 1) % 5
+
+
+func _step_point_popups() -> void:
+	for index in range(point_popups.size() - 1, -1, -1):
+		var popup = point_popups[index]
+		if not is_instance_valid(popup) or popup.expired():
+			point_popups.remove_at(index)
+			continue
+		# The recovered point animation runs at 60 Hz; gameplay runs at 30 Hz.
+		popup.step_reference_frames(2)
 
 
 func _play_sound(sound_name: String) -> void:

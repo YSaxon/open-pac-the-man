@@ -39,6 +39,11 @@ func request(value: int) -> void:
 		MazeDirectionScript.DOWN,
 	]:
 		requested_direction = value
+		# A 180-degree reversal does not need a maze node: the player is
+		# retracing the corridor segment it just traversed. Waiting for the next
+		# node made reversals appear to fail depending on where the key was hit.
+		if value == MazeDirectionScript.opposite(direction):
+			direction = value
 
 
 func release(value: int) -> void:

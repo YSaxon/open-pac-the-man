@@ -24,6 +24,7 @@ const ExtraMotionScript := preload("res://src/core/extra_motion.gd")
 const ExtraSpawnerScript := preload("res://src/core/extra_spawner.gd")
 const HighScoreStoreScript := preload("res://src/core/high_score_store.gd")
 const WavAudioScript := preload("res://src/import/wav_audio.gd")
+const PointPopupMotionScript := preload("res://src/core/point_popup_motion.gd")
 
 var failures := 0
 
@@ -39,6 +40,7 @@ func _initialize() -> void:
 	_test_session_rules()
 	_test_player_effects()
 	_test_extras()
+	_test_point_popup()
 	_test_high_scores()
 	_inspect_requested_archive()
 	if failures == 0:
@@ -101,6 +103,16 @@ func _test_player_motion() -> void:
 	motion.request(MazeDirectionScript.DOWN)
 	motion.step()
 	_expect(motion.position == Vector2(84, 43), "buffered turn executes exactly at the node")
+
+	var reversing = PlayerMotionScript.new(topology, Vector2i(0, 0))
+	reversing.request(MazeDirectionScript.RIGHT)
+	reversing.step()
+	_expect(not reversing.is_on_node(), "reversal regression starts between maze nodes")
+	reversing.request(MazeDirectionScript.LEFT)
+	reversing.step()
+	_expect(reversing.direction == MazeDirectionScript.LEFT and reversing.position == Vector2(40, 42), "opposite input reverses immediately between nodes")
+	reversing.release(MazeDirectionScript.RIGHT)
+	_expect(reversing.requested_direction == MazeDirectionScript.LEFT, "releasing the old direction does not cancel a held reversal")
 
 	var fast = PlayerMotionScript.new(topology, Vector2i(0, 0))
 	fast.request(MazeDirectionScript.RIGHT)
@@ -248,6 +260,24 @@ func _test_extras() -> void:
 	_expect(not spawner.active, "collected or expired extra releases active slot")
 
 
+func _test_point_popup() -> void:
+	var first = PointPopupMotionScript.new(100.0, 0)
+	_expect(first.y == 110.0 and first.landing_y == 106, "point popup starts ten pixels below collision and lands six pixels below")
+	first.step()
+	_expect(first.y == 110.0 and first.velocity_y == -14.0, "first point digit launches at recovered vertical speed")
+	first.step()
+	_expect(first.y == 103.0 and first.velocity_y == -13.5, "point digit uses recovered half-speed movement and gravity")
+	var staggered = PointPopupMotionScript.new(100.0, 1)
+	staggered.step()
+	staggered.step()
+	_expect(staggered.velocity_y == 0.0, "point digits wait two frames per character position")
+	staggered.step()
+	_expect(staggered.velocity_y == -14.0, "staggered point digit launches after its recovered delay")
+	for ignored in PointPopupMotionScript.LIFETIME_FRAMES - 2:
+		first.step()
+	_expect(first.expired(), "point popup expires after recovered one-and-a-half seconds")
+
+
 func _test_high_scores() -> void:
 	var path := "res://build/test-high-scores.json"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build"))
@@ -335,6 +365,13 @@ func _test_original_sprite(archive_path: String) -> void:
 	if not title_result.has("error"):
 		_expect(title_result["width"] == 640 and title_result["height"] == 480, "title sprite dimensions match")
 		_expect(title_result["bits_per_pixel"] == 24, "title sprite RGB depth matches")
+	var points_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
+		archive_path, "/Contents/Resources/Sprites/points.raw"
+	)
+	var points_result: Dictionary = RawSpriteScript.new().decode(points_entry.get("bytes", PackedByteArray()))
+	_expect(not points_result.has("error"), "original point-popup sprite decodes")
+	if not points_result.has("error"):
+		_expect(points_result["width"] == 144 and points_result["height"] == 105, "point-popup sheet contains eight digits in five colors")
 
 
 func _test_original_audio(archive_path: String) -> void:

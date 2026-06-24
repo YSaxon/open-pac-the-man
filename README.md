@@ -59,6 +59,8 @@ on that menu exits. In solo mode either arrow keys or WASD work.
 - Implements moving bonuses and the recovered per-avatar double-speed, double-score, and
   invulnerability effects. Bonuses use their recovered three-frame six-FPS wobble and rotation;
   five-frame power pellets animate from elapsed time rather than display frame count.
+- Restores the original five-color bouncing point digits for eaten ghosts and bonuses, including
+  double-score values, per-digit launch staggering, and the recovered 1.5-second lifetime.
 - Implements two-player simultaneous runtime with independent movement, score, lives, power-ups,
   death/respawn, ghost targeting, HUD, and high-score category.
 - Implements two-handed runtime with independent movement and power-ups but a shared score/lives
@@ -68,6 +70,11 @@ on that menu exits. In solo mode either arrow keys or WASD work.
 
 Known major gaps include settings, third/fourth player runtime, level-clear polish, and exact
 ghost difficulty/random-choice behavior.
+
+Planned multiplayer architecture separates input seats, player profiles/handicaps, live avatars,
+score accounts, and selectable appearances; see ADR 0003. Original Easy/Normal/Hard modes, the
+Hard-mode `spot.raw` darkness mask, and an Aqua/glass maze-rendering fidelity pass are tracked in
+ADR 0004.
 
 For a local visual-regression capture, append an absolute output path:
 

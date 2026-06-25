@@ -4,6 +4,7 @@ extends RefCounted
 const MazeDirectionScript := preload("res://src/core/direction.gd")
 const GhostStateScript := preload("res://src/core/ghost_state.gd")
 const PlayerMotionScript := preload("res://src/core/player_motion.gd")
+const DifficultyRulesScript := preload("res://src/core/difficulty_rules.gd")
 
 const HUNTING_SUBSTEPS := 10
 const FRIGHTENED_SUBSTEPS := 5
@@ -26,14 +27,28 @@ var frame := 0
 var home_cell := Vector2i(-1, -1)
 var entry_cell := Vector2i(-1, -1)
 var spawn_cell := Vector2i(-1, -1)
+var difficulty := DifficultyRulesScript.Level.NORMAL
+var rng := RandomNumberGenerator.new()
 
 
-func _init(maze = null, start_cell := Vector2i.ZERO, number := 0, return_cell := Vector2i(-1, -1)) -> void:
+func _init(
+	maze = null,
+	start_cell := Vector2i.ZERO,
+	number := 0,
+	return_cell := Vector2i(-1, -1),
+	difficulty_level := DifficultyRulesScript.Level.NORMAL,
+	seed := -1,
+) -> void:
 	topology = maze
 	spawn_cell = start_cell
 	home_cell = start_cell if return_cell.x < 0 else return_cell
 	position = Vector2(PlayerMotionScript.pixel_for_cell(start_cell))
 	ghost_number = number
+	difficulty = clampi(difficulty_level, DifficultyRulesScript.Level.EASY, DifficultyRulesScript.Level.MASTER)
+	if seed >= 0:
+		rng.seed = seed
+	else:
+		rng.randomize()
 	if topology != null:
 		entry_cell = topology.citadel_entry()
 
@@ -105,10 +120,20 @@ func current_cell() -> Vector2i:
 
 
 func is_on_node() -> bool:
-	return (
-		is_zero_approx(fposmod(position.x - PlayerMotionScript.GRID_ORIGIN.x, PlayerMotionScript.GRID_SPACING))
-		and is_zero_approx(fposmod(position.y - PlayerMotionScript.GRID_ORIGIN.y, PlayerMotionScript.GRID_SPACING))
+	var center := Vector2(PlayerMotionScript.pixel_for_cell(current_cell()))
+	var tolerance := PlayerMotionScript.MOVE_UNIT * DifficultyRulesScript.ghost_speed(difficulty) + 0.001
+	var delta := position - center
+	var close := (
+		absf(position.x - center.x) <= tolerance
+		and absf(position.y - center.y) <= tolerance
 	)
+	if not close:
+		return false
+	if delta.is_zero_approx():
+		return true
+	# Fractional 0.4/0.45-pixel speeds rarely land exactly on a node. Snap
+	# only while approaching a nearby node, never immediately after leaving it.
+	return delta.dot(Vector2(MazeDirectionScript.vector(direction))) < 0.0
 
 
 func _step_pixel(player_top_left: Vector2) -> void:
@@ -117,6 +142,7 @@ func _step_pixel(player_top_left: Vector2) -> void:
 		return
 	if is_on_node():
 		var cell := current_cell()
+		position = Vector2(PlayerMotionScript.pixel_for_cell(cell))
 		if state == GhostStateScript.RETURNING and cell == entry_cell:
 			reached_target = true
 		if state == GhostStateScript.RETURNING and reached_target and cell == home_cell:
@@ -126,7 +152,11 @@ func _step_pixel(player_top_left: Vector2) -> void:
 		direction = _choose_direction(cell, player_top_left)
 	if direction == MazeDirectionScript.NONE:
 		return
-	position += Vector2(MazeDirectionScript.vector(direction)) * PlayerMotionScript.MOVE_UNIT
+	position += (
+		Vector2(MazeDirectionScript.vector(direction))
+		* PlayerMotionScript.MOVE_UNIT
+		* DifficultyRulesScript.ghost_speed(difficulty)
+	)
 	_wrap_screen()
 
 
@@ -170,17 +200,74 @@ func _choose_direction(cell: Vector2i, player_top_left: Vector2) -> int:
 		return reverse
 
 	var target := _target_cell(player_top_left)
-	var best := choices[0]
-	var best_distance := _distance_after(cell, best, target)
-	for candidate in choices.slice(1):
-		var distance := _distance_after(cell, candidate, target)
-		var improves := distance < best_distance
-		if state == GhostStateScript.FRIGHTENED:
-			improves = distance > best_distance
-		if improves:
-			best = candidate
-			best_distance = distance
-	return best
+	var preferred := _directions_toward_or_away(
+		cell, target, choices, state == GhostStateScript.FRIGHTENED
+	)
+	if preferred.is_empty():
+		if choices.has(MazeDirectionScript.UP) and choices.has(MazeDirectionScript.DOWN):
+			preferred = [
+				MazeDirectionScript.UP if rng.randi_range(0, 1) == 0 else MazeDirectionScript.DOWN
+			]
+		elif choices.has(MazeDirectionScript.LEFT) and choices.has(MazeDirectionScript.RIGHT):
+			preferred = [
+				MazeDirectionScript.LEFT if rng.randi_range(0, 1) == 0 else MazeDirectionScript.RIGHT
+			]
+		else:
+			preferred = choices.duplicate()
+
+	if state == GhostStateScript.HUNTING and reached_target:
+		var random_max: int = DifficultyRulesScript.random_override_max(difficulty)
+		if random_max >= 0 and rng.randi_range(0, random_max) == 1:
+			var selected_index := rng.randi_range(0, 3)
+			var available_index := 0
+			for candidate in DIRECTION_ORDER:
+				if not choices.has(candidate):
+					continue
+				if available_index == selected_index:
+					return candidate
+				available_index += 1
+			return choices[0]
+
+	if difficulty >= DifficultyRulesScript.Level.HARD and _has_both_axes(preferred):
+		var delta := target - cell
+		if absi(delta.x) < absi(delta.y):
+			preferred = preferred.filter(
+				func(value: int) -> bool:
+					return value in [MazeDirectionScript.UP, MazeDirectionScript.DOWN]
+			)
+		else:
+			preferred = preferred.filter(
+				func(value: int) -> bool:
+					return value in [MazeDirectionScript.LEFT, MazeDirectionScript.RIGHT]
+			)
+
+	for candidate in DIRECTION_ORDER:
+		if preferred.has(candidate):
+			return candidate
+	return choices[0]
+
+
+func _directions_toward_or_away(
+	cell: Vector2i, target: Vector2i, choices: Array[int], away: bool
+) -> Array[int]:
+	var result: Array[int] = []
+	var delta := target - cell
+	var horizontal := MazeDirectionScript.RIGHT if delta.x > 0 else MazeDirectionScript.LEFT
+	var vertical := MazeDirectionScript.DOWN if delta.y > 0 else MazeDirectionScript.UP
+	if away:
+		horizontal = MazeDirectionScript.opposite(horizontal)
+		vertical = MazeDirectionScript.opposite(vertical)
+	if delta.x != 0 and choices.has(horizontal):
+		result.append(horizontal)
+	if delta.y != 0 and choices.has(vertical):
+		result.append(vertical)
+	return result
+
+
+func _has_both_axes(choices: Array[int]) -> bool:
+	var horizontal := choices.has(MazeDirectionScript.LEFT) or choices.has(MazeDirectionScript.RIGHT)
+	var vertical := choices.has(MazeDirectionScript.UP) or choices.has(MazeDirectionScript.DOWN)
+	return horizontal and vertical
 
 
 func _citadel_direction(cell: Vector2i, target: Vector2i) -> int:

@@ -36,24 +36,29 @@ Engine” is only a neutral working name.
 The project has reached its initial simultaneous-multiplayer milestone. Player 1 uses the arrow
 keys, Player 2 uses WASD, M toggles music, P or Space pauses, and Enter or R restarts after game
 over or campaign completion. Escape ends the current game and returns to the mode menu; Escape
-on that menu exits. In solo mode either arrow keys or WASD work.
+on that menu exits. In solo mode either arrow keys or WASD work. On the mode menu, D cycles through
+the original Easy, Normal, Hard, and single-player-only Master difficulties.
 
 - Validates the original 1.5.1 ZIP without copying it into the project.
 - Parses Apple XML property lists and imports all 25 bundled X levels.
 - Optionally imports the 25-level Standard plist recovered from the earlier local build; these
   levels use the archive's visible `back1`–`back18` patterned backgrounds.
 - Decodes the original 24-bit RGB and 32-bit RGBA `.raw` image formats.
-- Renders continuous smooth double-line maze contours around the recovered path topology, plus
-  the bundled citadel, pellet, power-pellet, background, player, ghost, bonus, READY, pause,
-  death, and game-over artwork directly from the archive.
+- Renders continuous smooth double-line maze contours around the recovered path topology with
+  layered shadow/highlight Aqua-style wall shading, plus the bundled citadel, pellet,
+  power-pellet, background, player, ghost, bonus, READY, pause, death, and game-over artwork
+  directly from the archive.
 - Implements pixel-exact player movement, buffered turns, tunnel wrapping, pellets, scoring,
   and extra-life thresholds recovered from 1.5.1a.
 - Loads all four ghost colors plus frightened/blinking artwork from the user-supplied archive.
 - Implements ghost waiting, hunting, frightened, returning, timed release, collision, and
-  level-dependent ghost scoring states. Returning ghosts use a shortest-path field, and the test
-  suite verifies that every connected path cell in all 25 levels can reach home without a loop.
+  level-dependent ghost scoring states. Recovered difficulty-specific speed, random branch choice,
+  deterministic Hard/Master pursuit, and two-player target ownership are implemented. Returning
+  ghosts use a shortest-path field, and the test suite verifies that every connected path cell in
+  all 25 levels can reach home without a loop.
 - Advances through all 25 imported X levels, preserves score/lives between levels, and implements
-  READY, pause, the two-part death sequence, game-over, campaign-completion, and restart states.
+  READY, pause, the two-part death sequence, post-death READY reset, game-over,
+  campaign-completion, and restart states.
 - Loads the original WAV effects and MP3 title/gameplay music directly from the archive and
   persists named top-ten scores in a versioned, mode-separated local high-score file.
 - Implements moving bonuses and the recovered per-avatar double-speed, double-score, and
@@ -67,14 +72,15 @@ on that menu exits. In solo mode either arrow keys or WASD work.
   account and separate high-score category. Exhausting the shared reserve removes only the avatar
   that died; the other finishes its current life. The runtime collections retain the planned
   3/4-player ownership model, but third/fourth player input and artwork are not exposed yet.
+- Restores four difficulty-separated high-score categories and Master's original 300×300 moving
+  darkness mask while retaining its original solo-only restriction.
 
-Known major gaps include settings, third/fourth player runtime, level-clear polish, and exact
-ghost difficulty/random-choice behavior.
+Known major gaps include settings, third/fourth player runtime, level-clear polish, and further
+side-by-side visual tuning against original screenshots.
 
 Planned multiplayer architecture separates input seats, player profiles/handicaps, live avatars,
-score accounts, and selectable appearances; see ADR 0003. Original Easy/Normal/Hard modes, the
-Hard-mode `spot.raw` darkness mask, and an Aqua/glass maze-rendering fidelity pass are tracked in
-ADR 0004.
+score accounts, and selectable appearances; see ADR 0003. Difficulty recovery and the remaining
+Aqua/glass maze-rendering fidelity work are tracked in ADR 0004.
 
 For a local visual-regression capture, append an absolute output path:
 

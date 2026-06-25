@@ -39,10 +39,11 @@ and `S` have special citadel/path behavior.
 The `tile` and `tile2` sheets are 33 pixels wide and contain 11-pixel primitive wall pieces;
 their entries are not complete 44-by-44 navigation-cell textures. Treating the character ordinal
 as a sheet frame and scaling that frame to a full cell produces broken, path-covering blocks.
-The rendered board instead follows the union of the direction-mask centerlines and draws concentric
-outer wall, gap, inner wall, and black corridor layers. This creates the original continuous paired
-walls around paths, with joined rounded bends and intersections. The citadel remains a complete
-132-by-88 image covering its three-by-two-cell region.
+The rendered board instead follows the union of the direction-mask centerlines and draws layered
+shadow, glow, outer wall, gap, inner wall, offset highlight/lowlight, and black corridor strokes.
+This creates the original continuous paired walls around paths, with joined rounded bends and
+intersections, while leaving the Aqua/glass shading tunable separately from collision. The citadel
+remains a complete 132-by-88 image covering its three-by-two-cell region.
 
 ## Player movement
 
@@ -85,15 +86,29 @@ The five values stored by the original ghost movement state are:
 - 5: frightened while waiting inside the citadel
 
 Each normal game update invokes ghost movement ten times while hunting, five times while
-frightened, and up to 32 times while returning. At the original 0.5-pixel movement unit these
-become 5, 2.5, and 16 pixels per 30 Hz gameplay update. Waiting ghosts receive ten vertical movement
-updates; frightened waiting ghosts receive five. Entering frightened state reverses a ghost's
-current velocity. A returning ghost is not affected by another super pellet.
+frightened, and up to 32 times while returning. After the first branch, the 0.5 context factor and
+difficulty velocity make these 4.0/2.0/12.8 pixels on Easy and 4.5/2.25/14.4 pixels on the other
+modes. Waiting ghosts retain their initial unit velocity and receive ten vertical updates;
+frightened waiting ghosts receive five. Entering frightened state reverses a ghost's current
+velocity. A returning ghost is not affected by another super pellet.
 
 Hunting ghosts first target the citadel entry when leaving home, then target a player. Returning
-ghosts first target the citadel entry, then their individual starting point. The original uses
-direct target comparisons plus difficulty-dependent random choices at branches; exact tie and
-random-choice compatibility remains under study.
+ghosts first target the citadel entry, then their individual starting point. With two players,
+ghosts 0 and 2 target player 1 while ghosts 1 and 3 target player 2; a one-player game returns its
+sole player for either request.
+
+The persisted difficulty values are Easy 1, Normal 2, Hard 3, and Master 4; Normal is the fallback.
+Easy uses a 0.8 ghost velocity component and the other modes use 0.9, each multiplied by the
+animation context's 0.5 speed factor. At a hunting branch after leaving home, Easy has a one-in-three
+chance to replace its target-directed choice with a random available direction. Normal does so
+one time in 27. Hard and Master have no random override and, when both a horizontal and vertical
+target-directed choice exist, retain the axis with the larger absolute separation (horizontal wins
+a tie). Frightened ghosts invert the target comparisons.
+
+Master is single-player-only. Each Master player owns the supplied 300×300 `spot.raw` sprite,
+centered on its 32×32 artwork, plus four opaque 640×480 sprites positioned around it so the rest of
+the viewport is black. The local high-score table name includes both level-file name and numeric
+difficulty, giving all four modes distinct tables.
 
 Ghost zero starts on the citadel entry and immediately hunts. The remaining three start one row
 inside the citadel at horizontal offsets -1, 0, and +1 and initially wait. Ghost zero's return

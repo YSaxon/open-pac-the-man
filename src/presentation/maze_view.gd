@@ -3,11 +3,18 @@ extends Node2D
 
 const CELL_SIZE := 44.0
 const HALF_CELL := CELL_SIZE / 2.0
+const SHADOW_WIDTH := 33.0
 const GLOW_WIDTH := 34.0
 const OUTER_WALL_WIDTH := 29.0
+const WALL_FACE_WIDTH := 27.0
 const WALL_GAP_WIDTH := 25.0
 const INNER_WALL_WIDTH := 21.0
+const GLASS_HIGHLIGHT_WIDTH := 19.5
+const GLASS_LOWLIGHT_WIDTH := 19.5
 const CORRIDOR_WIDTH := 17.0
+const SHADOW_OFFSET := Vector2(2.0, 2.0)
+const HIGHLIGHT_OFFSET := Vector2(-1.25, -1.25)
+const LOWLIGHT_OFFSET := Vector2(1.25, 1.25)
 
 var level
 var origin := Vector2.ZERO
@@ -32,19 +39,34 @@ func _draw() -> void:
 		return
 	# The raw tile sheet contains 11-pixel wall primitives, not 44-pixel cell
 	# textures. Layering the union of all path strokes recreates the continuous
-	# pair of walls surrounding the playable corridor.
+	# pair of walls surrounding the playable corridor. The offset highlight and
+	# lowlight strokes approximate the original Aqua/glass shading without
+	# changing the underlying topology.
 	var glow: Color = level.wall_color
-	glow.a = 0.22
+	glow.a = 0.20
+	var shadow := Color(0.0, 0.0, 0.0, 0.42)
+	var outer: Color = level.wall_color.darkened(0.44)
+	var face: Color = level.wall_color.darkened(0.10)
+	var gap := Color("02040a")
+	var inner: Color = level.wall_color.lightened(0.16)
+	var highlight: Color = level.wall_color.lightened(0.76)
+	highlight.a = 0.46
+	var lowlight: Color = level.wall_color.darkened(0.54)
+	lowlight.a = 0.54
+	_draw_path_layer(SHADOW_WIDTH, shadow, SHADOW_OFFSET)
 	_draw_path_layer(GLOW_WIDTH, glow)
-	_draw_path_layer(OUTER_WALL_WIDTH, level.wall_color.darkened(0.48))
-	_draw_path_layer(WALL_GAP_WIDTH, Color("02040a"))
-	_draw_path_layer(INNER_WALL_WIDTH, level.wall_color.lightened(0.12))
+	_draw_path_layer(OUTER_WALL_WIDTH, outer)
+	_draw_path_layer(WALL_FACE_WIDTH, face)
+	_draw_path_layer(WALL_GAP_WIDTH, gap)
+	_draw_path_layer(INNER_WALL_WIDTH, inner)
+	_draw_path_layer(GLASS_LOWLIGHT_WIDTH, lowlight, LOWLIGHT_OFFSET)
+	_draw_path_layer(GLASS_HIGHLIGHT_WIDTH, highlight, HIGHLIGHT_OFFSET)
 	_draw_path_layer(CORRIDOR_WIDTH, Color("000000"))
 	if citadel_texture != null:
 		_draw_citadel()
 
 
-func _draw_path_layer(width: float, color: Color) -> void:
+func _draw_path_layer(width: float, color: Color, offset := Vector2.ZERO) -> void:
 	for y in level.rows.size():
 		var row: String = level.rows[y]
 		for x in row.length():
@@ -52,25 +74,25 @@ func _draw_path_layer(width: float, color: Color) -> void:
 			if mask <= 0 or mask > 15:
 				continue
 			var cell := Vector2i(x, y)
-			var center := _cell_center(cell)
+			var center := _cell_center(cell) + offset
 			for direction in [1, 2, 4, 8]:
 				if mask & direction:
-					draw_line(center, _path_endpoint(cell, center, direction), color, width, true)
+					draw_line(center, _path_endpoint(cell, center, direction, offset), color, width, true)
 	# Round caps at nodes make turns and intersections one continuous contour.
 	for y in level.rows.size():
 		var row: String = level.rows[y]
 		for x in row.length():
 			var mask := row.unicode_at(x) - "A".unicode_at(0)
 			if mask > 0 and mask <= 15:
-				draw_circle(_cell_center(Vector2i(x, y)), width / 2.0, color, true, -1.0, true)
+				draw_circle(_cell_center(Vector2i(x, y)) + offset, width / 2.0, color, true, -1.0, true)
 
 
-func _path_endpoint(cell: Vector2i, center: Vector2, direction: int) -> Vector2:
+func _path_endpoint(cell: Vector2i, center: Vector2, direction: int, offset := Vector2.ZERO) -> Vector2:
 	match direction:
 		1:
-			return Vector2(0.0, center.y) if cell.x == 0 else center + Vector2(-HALF_CELL, 0.0)
+			return Vector2(offset.x, center.y) if cell.x == 0 else center + Vector2(-HALF_CELL, 0.0)
 		2:
-			return Vector2(640.0, center.y) if cell.x == level.rows[cell.y].length() - 1 else center + Vector2(HALF_CELL, 0.0)
+			return Vector2(640.0 + offset.x, center.y) if cell.x == level.rows[cell.y].length() - 1 else center + Vector2(HALF_CELL, 0.0)
 		4:
 			return center + Vector2(0.0, -HALF_CELL)
 		8:

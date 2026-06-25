@@ -23,6 +23,8 @@ const HighScoreStoreScript := preload("res://src/core/high_score_store.gd")
 const SessionRulesScript := preload("res://src/core/session_rules.gd")
 const WavAudioScript := preload("res://src/import/wav_audio.gd")
 const PointPopupViewScript := preload("res://src/presentation/point_popup_view.gd")
+const DifficultyRulesScript := preload("res://src/core/difficulty_rules.gd")
+const SpotlightViewScript := preload("res://src/presentation/spotlight_view.gd")
 
 const TICKS_PER_SECOND := 30
 const FRIGHTENED_DURATION_TICKS := 8 * TICKS_PER_SECOND
@@ -93,6 +95,8 @@ var name_entry_active := false
 var point_texture: Texture2D
 var point_popup_color := 0
 var point_popups: Array = []
+var difficulty := DifficultyRulesScript.Level.NORMAL
+var spotlight_view
 
 
 func _ready() -> void:
@@ -110,6 +114,9 @@ func _ready() -> void:
 	high_scores = HighScoreStoreScript.new()
 	high_scores.load_scores()
 	session_rules = _requested_session_rules()
+	difficulty = DifficultyRulesScript.parse(_argument_value("--difficulty="))
+	if DifficultyRulesScript.uses_spotlight(difficulty) and session_rules.avatar_count > 1:
+		difficulty = DifficultyRulesScript.Level.HARD
 	high_score_category = _current_high_score_category()
 	for ignored in session_rules.account_count:
 		score_states.append(ScoreStateScript.new())
@@ -200,6 +207,7 @@ func _start_level(index: int) -> void:
 	_add_players(archive_path, level, topology)
 	_add_extra_system(archive_path, topology)
 	_add_ghosts(archive_path, topology)
+	_add_spotlight()
 	_add_ready_banner(archive_path)
 	ghost_release_ticks = GhostReleaseScheduleScript.delay_seconds(level_number) * TICKS_PER_SECOND
 	round_start_ticks = TICKS_PER_SECOND
@@ -242,6 +250,7 @@ func _clear_level() -> void:
 	ghosts_eaten = 0
 	level_transition_ticks = 0
 	point_popups.clear()
+	spotlight_view = null
 
 
 func _archive_path() -> String:
@@ -294,7 +303,9 @@ func _load_level_pack(requested_pack: String) -> bool:
 
 
 func _current_high_score_category() -> String:
-	var category: String = session_rules.high_score_category()
+	var category: String = "%s_%s" % [
+		session_rules.high_score_category(), DifficultyRulesScript.key(difficulty)
+	]
 	return "standard_%s" % category if level_pack == "standard" else category
 
 
@@ -473,7 +484,9 @@ func _add_ghosts(archive_path: String, topology) -> void:
 		var return_cell: Vector2i = spawn_cells[number]
 		if number == 0:
 			return_cell = entry_cell + Vector2i.DOWN
-		var motion = GhostMotionScript.new(topology, spawn_cells[number], number, return_cell)
+		var motion = GhostMotionScript.new(
+			topology, spawn_cells[number], number, return_cell, difficulty
+		)
 		if number == 0:
 			motion.direction = MazeDirectionScript.LEFT
 			motion.start_hunting(true)
@@ -485,6 +498,19 @@ func _add_ghosts(archive_path: String, topology) -> void:
 		ghost_sprites.append(sprite)
 		level_root.add_child(sprite)
 		_update_ghost_sprite(number)
+
+
+func _add_spotlight() -> void:
+	if not DifficultyRulesScript.uses_spotlight(difficulty) or player_motions.is_empty():
+		return
+	var texture := _load_raw_texture("/Contents/Resources/Sprites/spot.raw")
+	if texture == null:
+		return
+	spotlight_view = SpotlightViewScript.new()
+	spotlight_view.z_index = 100
+	level_root.add_child(spotlight_view)
+	spotlight_view.show_spot(texture)
+	spotlight_view.follow_player(player_motions[0].position)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -509,6 +535,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if menu_active and event.is_pressed():
 		match event.keycode:
+			KEY_D:
+				difficulty = difficulty % DifficultyRulesScript.Level.MASTER + 1
+				_refresh_mode_menu_text()
 			KEY_1, KEY_KP_1, KEY_ENTER:
 				_begin_mode(SessionRulesScript.Mode.SOLO)
 			KEY_2, KEY_KP_2:
@@ -598,8 +627,10 @@ func _physics_process(_delta: float) -> void:
 		sprite.texture = flash if effects.is_invulnerable() and flash != null else player_normal_textures[avatar_index]
 		sprite.position = motion.position + Vector2(16, 16)
 		sprite.region_rect = PlayerSpriteLayoutScript.region(motion.direction, motion.frame)
+	if spotlight_view != null and not player_motions.is_empty():
+		spotlight_view.follow_player(player_motions[0].position)
 	for index in ghost_motions.size():
-		ghost_motions[index].step(_ghost_target_position(ghost_motions[index].position))
+		ghost_motions[index].step(_ghost_target_position(index))
 		_update_ghost_sprite(index)
 	_step_ghost_release()
 	for avatar_index in player_motions.size():
@@ -613,18 +644,16 @@ func _physics_process(_delta: float) -> void:
 		_play_sound("level_clear")
 
 
-func _ghost_target_position(ghost_position: Vector2) -> Vector2:
-	var target: Vector2 = player_motion.position
-	var best_distance := INF
+func _ghost_target_position(ghost_number: int) -> Vector2:
+	if player_motions.size() == 1:
+		return player_motions[0].position
+	var preferred := ghost_number % 2
+	if preferred < player_motions.size() and player_active[preferred]:
+		return player_motions[preferred].position
 	for avatar_index in player_motions.size():
-		if not player_active[avatar_index]:
-			continue
-		var candidate: Vector2 = player_motions[avatar_index].position
-		var distance := ghost_position.distance_squared_to(candidate)
-		if distance < best_distance:
-			best_distance = distance
-			target = candidate
-	return target
+		if player_active[avatar_index]:
+			return player_motions[avatar_index].position
+	return player_motion.position
 
 
 func _collect_pellet_for_avatar(avatar_index: int) -> void:
@@ -821,6 +850,9 @@ func _step_player_dying() -> void:
 		ghost_motions[index].reset_to_spawn()
 		ghost_sprites[index].visible = true
 		_update_ghost_sprite(index)
+	round_start_ticks = TICKS_PER_SECOND
+	if ready_sprite != null:
+		ready_sprite.visible = true
 	player_dying_index = -1
 
 
@@ -910,7 +942,21 @@ func _show_mode_menu() -> void:
 		$ModeMenu/Title.texture = texture
 	$ModeMenu.visible = true
 	menu_active = true
+	_refresh_mode_menu_text()
 	_play_music("PacTitle")
+
+
+func _refresh_mode_menu_text(master_warning := false) -> void:
+	var warning := "\nMASTER IS SOLO ONLY" if master_warning else ""
+	$ModeMenu/Choices/Text.text = (
+		"1 / Enter   X LEVELS SOLO — arrows or WASD\n"
+		+ "2             X LEVELS TWO PLAYERS — arrows + WASD\n"
+		+ "3 / T         X LEVELS TWO-HANDED — shared score/lives\n"
+		+ "4             STANDARD LEVELS SOLO — patterned backgrounds\n\n"
+		+ "D changes difficulty: %s\n" % DifficultyRulesScript.label(difficulty).to_upper()
+		+ "P / Space pauses · M music · Esc exits"
+		+ warning
+	)
 
 
 func _end_current_game() -> void:
@@ -925,6 +971,9 @@ func _end_current_game() -> void:
 
 
 func _begin_mode(mode: int, requested_pack := "x") -> void:
+	if DifficultyRulesScript.uses_spotlight(difficulty) and mode != SessionRulesScript.Mode.SOLO:
+		_refresh_mode_menu_text(true)
+		return
 	menu_active = false
 	$ModeMenu.visible = false
 	if requested_pack != level_pack and not _load_level_pack(requested_pack):

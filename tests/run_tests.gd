@@ -25,6 +25,7 @@ const ExtraSpawnerScript := preload("res://src/core/extra_spawner.gd")
 const HighScoreStoreScript := preload("res://src/core/high_score_store.gd")
 const WavAudioScript := preload("res://src/import/wav_audio.gd")
 const PointPopupMotionScript := preload("res://src/core/point_popup_motion.gd")
+const DifficultyRulesScript := preload("res://src/core/difficulty_rules.gd")
 
 var failures := 0
 
@@ -37,6 +38,7 @@ func _initialize() -> void:
 	_test_player_motion()
 	_test_pellets_and_score()
 	_test_ghost_motion()
+	_test_difficulty_rules()
 	_test_session_rules()
 	_test_player_effects()
 	_test_extras()
@@ -85,6 +87,8 @@ func _test_tile_alphabet() -> void:
 	_expect("D".unicode_at(0) - "A".unicode_at(0) == 3, "D encodes a horizontal connection")
 	_expect("M".unicode_at(0) - "A".unicode_at(0) == 12, "M encodes a vertical connection")
 	_expect(MazeViewScript.CELL_SIZE == 44.0, "maze presentation uses recovered grid scale")
+	_expect(MazeViewScript.SHADOW_WIDTH > MazeViewScript.OUTER_WALL_WIDTH, "maze shadow sits outside the wall contour")
+	_expect(MazeViewScript.CORRIDOR_WIDTH < MazeViewScript.GLASS_HIGHLIGHT_WIDTH, "maze corridor cuts the glass highlight into wall edges")
 
 
 func _test_player_motion() -> void:
@@ -186,19 +190,19 @@ func _test_ghost_motion() -> void:
 	ghost.direction = MazeDirectionScript.RIGHT
 	ghost.start_hunting(true)
 	ghost.step(PlayerMotionScript.pixel_for_cell(Vector2i(2, 0)))
-	_expect(ghost.position == Vector2(89, 42), "hunting ghost advances ten half-pixel substeps")
+	_expect(ghost.position.is_equal_approx(Vector2(88.5, 42)), "normal ghost advances ten recovered 0.45-pixel substeps")
 	ghost.position = Vector2(PlayerMotionScript.pixel_for_cell(Vector2i(1, 0)))
 	ghost.direction = MazeDirectionScript.RIGHT
 	ghost.start_frightened(10)
 	ghost.step(PlayerMotionScript.pixel_for_cell(Vector2i(2, 0)))
 	_expect(ghost.state == GhostStateScript.FRIGHTENED, "super-pellet transition enters frightened state")
-	_expect(ghost.position == Vector2(81.5, 42), "frightened ghost reverses and advances five half-pixel substeps")
+	_expect(ghost.position.is_equal_approx(Vector2(81.75, 42)), "frightened ghost reverses and advances five recovered substeps")
 	ghost.start_returning()
 	ghost.reached_target = true
 	ghost.position = Vector2(PlayerMotionScript.pixel_for_cell(Vector2i(2, 0)))
 	ghost.direction = MazeDirectionScript.LEFT
 	ghost.step(PlayerMotionScript.pixel_for_cell(Vector2i.ZERO))
-	_expect(ghost.position == Vector2(112, 42), "returning ghost advances thirty-two half-pixel substeps")
+	_expect(ghost.position.is_equal_approx(Vector2(113.6, 42)), "returning ghost advances thirty-two recovered substeps")
 	var returning = GhostMotionScript.new(topology, Vector2i(0, 0), 0, Vector2i(6, 4))
 	returning.position = Vector2(PlayerMotionScript.pixel_for_cell(Vector2i(0, 0)))
 	returning.start_returning()
@@ -222,7 +226,35 @@ func _test_ghost_motion() -> void:
 	var home_ghost = GhostMotionScript.new(topology, Vector2i(5, 4), 1)
 	home_ghost.start_hunting(false)
 	home_ghost.step(PlayerMotionScript.pixel_for_cell(Vector2i.ZERO))
-	_expect(home_ghost.position == Vector2(PlayerMotionScript.pixel_for_cell(Vector2i(5, 4))) + Vector2(5, 0), "released side ghost routes toward citadel center")
+	_expect(home_ghost.position.is_equal_approx(Vector2(PlayerMotionScript.pixel_for_cell(Vector2i(5, 4))) + Vector2(4.5, 0)), "released side ghost routes toward citadel center")
+
+
+func _test_difficulty_rules() -> void:
+	_expect(DifficultyRulesScript.parse("easy") == DifficultyRulesScript.Level.EASY, "easy difficulty parses")
+	_expect(DifficultyRulesScript.parse("master") == DifficultyRulesScript.Level.MASTER, "master difficulty parses")
+	_expect(is_equal_approx(DifficultyRulesScript.ghost_speed(DifficultyRulesScript.Level.EASY), 0.8), "easy ghost speed uses recovered multiplier")
+	_expect(is_equal_approx(DifficultyRulesScript.ghost_speed(DifficultyRulesScript.Level.NORMAL), 0.9), "normal ghost speed uses recovered multiplier")
+	_expect(DifficultyRulesScript.random_override_max(DifficultyRulesScript.Level.EASY) == 2, "easy uses recovered one-in-three random branch override")
+	_expect(DifficultyRulesScript.random_override_max(DifficultyRulesScript.Level.NORMAL) == 26, "normal uses recovered one-in-twenty-seven random branch override")
+	_expect(DifficultyRulesScript.random_override_max(DifficultyRulesScript.Level.HARD) < 0, "hard ghost branches are deterministic")
+	_expect(DifficultyRulesScript.uses_spotlight(DifficultyRulesScript.Level.MASTER), "master enables the original spotlight")
+
+	var open_grid = MazeTopologyScript.new(PackedStringArray(["PPP", "PPP", "PPP"]))
+	var hard_ghost = GhostMotionScript.new(
+		open_grid,
+		Vector2i(1, 1),
+		0,
+		Vector2i(-1, -1),
+		DifficultyRulesScript.Level.HARD,
+		1,
+	)
+	hard_ghost.start_hunting(true)
+	hard_ghost.direction = MazeDirectionScript.NONE
+	var vertical_target := PlayerMotionScript.pixel_for_cell(Vector2i(2, 3))
+	_expect(
+		hard_ghost._choose_direction(Vector2i(1, 1), vertical_target) == MazeDirectionScript.DOWN,
+		"hard ghost prioritizes the axis with greater separation",
+	)
 
 
 func _test_session_rules() -> void:
@@ -398,6 +430,13 @@ func _test_original_sprite(archive_path: String) -> void:
 	_expect(not points_result.has("error"), "original point-popup sprite decodes")
 	if not points_result.has("error"):
 		_expect(points_result["width"] == 144 and points_result["height"] == 105, "point-popup sheet contains eight digits in five colors")
+	var spot_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
+		archive_path, "/Contents/Resources/Sprites/spot.raw"
+	)
+	var spot_result: Dictionary = RawSpriteScript.new().decode(spot_entry.get("bytes", PackedByteArray()))
+	_expect(not spot_result.has("error"), "original Master spotlight decodes")
+	if not spot_result.has("error"):
+		_expect(spot_result["width"] == 300 and spot_result["height"] == 300, "Master spotlight uses recovered 300-pixel mask")
 
 
 func _test_original_audio(archive_path: String) -> void:

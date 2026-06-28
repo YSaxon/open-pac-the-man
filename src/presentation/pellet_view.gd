@@ -2,7 +2,7 @@ class_name PelletView
 extends Node2D
 
 const PelletFieldScript := preload("res://src/core/pellet_field.gd")
-const SUPER_PELLET_FPS := 15.0
+const SUPER_PELLET_FPS := 6.0
 
 var field
 var pellet_texture: Texture2D

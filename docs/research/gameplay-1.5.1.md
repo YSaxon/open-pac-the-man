@@ -39,11 +39,11 @@ and `S` have special citadel/path behavior.
 The `tile` and `tile2` sheets are 33 pixels wide and contain 11-pixel primitive wall pieces;
 their entries are not complete 44-by-44 navigation-cell textures. Treating the character ordinal
 as a sheet frame and scaling that frame to a full cell produces broken, path-covering blocks.
-The rendered board instead follows the union of the direction-mask centerlines and draws layered
-shadow, glow, outer wall, gap, inner wall, offset highlight/lowlight, and black corridor strokes.
-This creates the original continuous paired walls around paths, with joined rounded bends and
-intersections, while leaving the Aqua/glass shading tunable separately from collision. The citadel
-remains a complete 132-by-88 image covering its three-by-two-cell region.
+The rendered board follows the path topology but should not paint a solid black corridor over the
+level texture. Original screenshots show the level/background texture visible through both
+corridors and enclosed islands, with neon wall boundaries above it. The remake therefore draws
+boundary lines offset from each path centerline, then overlays the complete 132-by-88 citadel image
+and the 40-by-8 `barrier.raw` ghost-door sprite.
 
 ## Player movement
 
@@ -139,10 +139,10 @@ two-frame-per-digit stagger. `TSprite::MoveXY` applies the 0.5 animation speed f
 `TPoints::Move` adds 0.5 gravity each 60 Hz animation frame. The digit settles six pixels below
 the collision coordinate and the sprite expires after 90 frames (1.5 seconds).
 
-The ghost collision path does not install a global delay or slow-motion timer. It clears the
-colliding player and ghost's per-update movement flag after creating the popup; their next `Move`
-calls restore it. This produces at most a single display-update interruption, not a sustained game
-pause, so the remake does not add an artificial freeze.
+Video reference and play feel show a short gameplay pause while the eaten-ghost point digits bounce.
+The current remake uses a one-second gameplay pause after a frightened ghost is eaten while point
+popup animation continues. This remains a candidate for a deeper code trace if exact frame count is
+needed.
 
 ## Player extras
 
@@ -156,8 +156,8 @@ The symbol-rich earlier build constructs each `TExtra` with a three-frame set an
 `TSprite::SetFrameSpeed(6.0)`. The visible order is implemented as a center/right/center/left
 wobble at six frames per second. Rotation advances in three-degree gameplay steps but reverses at
 25 and 335 degrees, making the item rock about 25 degrees in each direction rather than spin. The
-five-frame super-pellet strip advances from elapsed time so its loop remains stable when the display
-refresh rate changes.
+five-frame super-pellet strip advances from elapsed time at six frames per second so its loop remains
+stable when the display refresh rate changes.
 
 Once per second, the original attempts to spawn an extra only while at least 60 pellets remain, no
 extra is already active, and fewer than five have appeared. The attempt has a one-in-seven chance.

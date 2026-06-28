@@ -25,11 +25,14 @@ sprites. Difficulty is session-owned and is not a per-player handicap.
 
 ## Maze presentation follow-up
 
-The current contour geometry is mechanically correct and now uses separate shadow, glow, wall-face,
-gap, inner-wall, highlight, and lowlight strokes. This moves the maze closer to the original Mac OS
-X Aqua/glass appearance while keeping all visual parameters inside `MazeView`.
+The current contour geometry is mechanically correct and now draws neon boundaries offset from path
+centerlines, leaving the level/background texture visible in corridors and enclosed wall islands.
+This better matches original screenshots than the earlier centerline renderer, which painted a black
+corridor and created a thick double-wall look. `barrier.raw` is rendered over the ghost-base
+entrance, and the HUD uses the recovered `font.raw` sheet.
 
 The remaining fidelity pass should compare side-by-side original captures and tune the layered
-alpha, dark outer edge, colored body, bright inner highlight, rounded joins, and glow/shadow
-treatment. Longer-term, these parameters should live in a reusable maze material/style object so
-visual tuning cannot affect path geometry.
+alpha, colored body, bright highlight, rounded joins, glow/shadow treatment, citadel overlay
+opacity, and any tileset-specific differences between Standard `tile` and X-level `tile2`.
+Longer-term, these parameters should live in a reusable maze material/style object so visual tuning
+cannot affect path geometry.

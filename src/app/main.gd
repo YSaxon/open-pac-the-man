@@ -25,10 +25,12 @@ const WavAudioScript := preload("res://src/import/wav_audio.gd")
 const PointPopupViewScript := preload("res://src/presentation/point_popup_view.gd")
 const DifficultyRulesScript := preload("res://src/core/difficulty_rules.gd")
 const SpotlightViewScript := preload("res://src/presentation/spotlight_view.gd")
+const FontTextViewScript := preload("res://src/presentation/font_text_view.gd")
 
 const TICKS_PER_SECOND := 30
 const FRIGHTENED_DURATION_TICKS := 8 * TICKS_PER_SECOND
 const LEVEL_CLEAR_DURATION_TICKS := 2 * TICKS_PER_SECOND
+const GHOST_EAT_PAUSE_TICKS := TICKS_PER_SECOND
 
 var player_motion
 var player_sprite: Sprite2D
@@ -97,6 +99,13 @@ var point_popup_color := 0
 var point_popups: Array = []
 var difficulty := DifficultyRulesScript.Level.NORMAL
 var spotlight_view
+var hud_font_texture: Texture2D
+var hud_score_text
+var hud_second_score_text
+var hud_level_text
+var hud_double_texts: Array = []
+var ghost_eat_pause_ticks := 0
+var ghost_eat_hidden_index := -1
 
 
 func _ready() -> void:
@@ -107,10 +116,11 @@ func _ready() -> void:
 	if archive_path.is_empty():
 		$Status.text = "Maze Engine\nPass --archive=/path/to/pacx151a.zip to load original data"
 		return
-	level_pack = "standard" if _argument_value("--level-pack=").to_lower() == "standard" else "x"
+	level_pack = "x" if _argument_value("--level-pack=").to_lower() == "x" else "standard"
 	if not _load_level_pack(level_pack):
 		$Status.text = "Maze Engine\nCould not import level data"
 		return
+	_setup_hud_font()
 	high_scores = HighScoreStoreScript.new()
 	high_scores.load_scores()
 	session_rules = _requested_session_rules()
@@ -186,13 +196,14 @@ func _start_level(index: int) -> void:
 	var level = levels[level_number]
 	if point_texture == null:
 		point_texture = _load_raw_texture("/Contents/Resources/Sprites/points.raw")
-	_add_background(archive_path, level.background)
+	var background_texture := _load_background_texture(archive_path, level.background)
 	var maze = MazeViewScript.new()
 	level_root.add_child(maze)
-	maze.set_artwork(
-		null,
-		_load_wall_mask_texture("/Contents/Resources/Sprites/%s.raw" % ("citadel1" if level.citadel == "citadel" else level.citadel)),
-	)
+	var citadel_name: String = "citadel1" if level.citadel == "citadel" else level.citadel
+	var tile_texture := _load_wall_mask_texture("/Contents/Resources/Sprites/%s.raw" % level.tileset)
+	var citadel_texture := _load_wall_mask_texture("/Contents/Resources/Sprites/%s.raw" % citadel_name)
+	var barrier_texture := _load_raw_texture("/Contents/Resources/Sprites/barrier.raw")
+	maze.set_artwork(tile_texture, citadel_texture, barrier_texture, background_texture)
 	maze.show_level(level, Vector2(34, 36))
 	pellet_field = PelletFieldScript.new()
 	pellet_field.build(level)
@@ -251,6 +262,8 @@ func _clear_level() -> void:
 	level_transition_ticks = 0
 	point_popups.clear()
 	spotlight_view = null
+	ghost_eat_pause_ticks = 0
+	ghost_eat_hidden_index = -1
 
 
 func _archive_path() -> String:
@@ -278,7 +291,7 @@ func _load_level_pack(requested_pack: String) -> bool:
 	var bytes := PackedByteArray()
 	if requested_pack == "standard":
 		var archive_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
-			archive_path, "/Contents/Resources/Levels/Levels.plist"
+			archive_path, "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist"
 		)
 		if not archive_entry.has("error"):
 			bytes = archive_entry["bytes"]
@@ -329,29 +342,21 @@ func _save_screenshot(path: String) -> void:
 	get_tree().quit(error)
 
 
-func _add_background(source_archive: String, background_name: String) -> void:
+func _load_background_texture(source_archive: String, background_name: String) -> Texture2D:
 	if background_name.is_empty():
-		return
+		return null
 	var entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		source_archive, "/Contents/Resources/Backgrounds/%s.png" % background_name
 	)
 	if entry.has("error"):
-		return
+		return null
 	var image := Image.new()
 	if image.load_png_from_buffer(entry["bytes"]) != OK or image.get_width() <= 0 or image.get_height() <= 0:
-		return
-	# The original backgrounds are small repeating tiles, not full-screen artwork.
-	# Keep every tile at its native size so its pattern and pixel scale remain intact.
-	var texture := ImageTexture.create_from_image(image)
-	for y in range(0, 480, image.get_height()):
-		for x in range(0, 640, image.get_width()):
-			var sprite := Sprite2D.new()
-			sprite.texture = texture
-			sprite.position = Vector2(
-				x + image.get_width() * 0.5,
-				y + image.get_height() * 0.5,
-			)
-			level_root.add_child(sprite)
+		return null
+	# The original backgrounds are small repeating tiles. MazeView applies the
+	# repeat only through its non-playable-region mask; playable corridors remain
+	# dark instead of receiving the texture.
+	return ImageTexture.create_from_image(image)
 
 
 func _load_raw_texture(suffix: String) -> Texture2D:
@@ -362,6 +367,37 @@ func _load_raw_texture(suffix: String) -> Texture2D:
 	if decoded.has("error"):
 		return null
 	return ImageTexture.create_from_image(decoded["image"])
+
+
+func _setup_hud_font() -> void:
+	hud_font_texture = _load_raw_texture("/Contents/Resources/Sprites/font.raw")
+	if hud_font_texture == null:
+		return
+	$Hud/Score.visible = false
+	$Hud/SecondPlayer/Score.visible = false
+	$Hud/LevelNumber.visible = false
+	hud_score_text = FontTextViewScript.new()
+	hud_score_text.position = Vector2(72, 3)
+	$Hud.add_child(hud_score_text)
+	hud_level_text = FontTextViewScript.new()
+	hud_level_text.position = Vector2(310, 3)
+	$Hud.add_child(hud_level_text)
+	hud_second_score_text = FontTextViewScript.new()
+	hud_second_score_text.position = Vector2(444, 3)
+	$Hud/SecondPlayer.add_child(hud_second_score_text)
+	for index in 2:
+		var indicator = FontTextViewScript.new()
+		indicator.set_font_texture(hud_font_texture)
+		indicator.show_text("X2", 0 if index == 0 else 1, -2)
+		indicator.visible = false
+		indicator.position = Vector2(68, 3) if index == 0 else Vector2(548, 3)
+		if index == 0:
+			$Hud.add_child(indicator)
+		else:
+			$Hud/SecondPlayer.add_child(indicator)
+		hud_double_texts.append(indicator)
+	for view in [hud_score_text, hud_level_text, hud_second_score_text]:
+		view.set_font_texture(hud_font_texture)
 
 
 func _load_wall_mask_texture(suffix: String) -> Texture2D:
@@ -539,13 +575,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				difficulty = difficulty % DifficultyRulesScript.Level.MASTER + 1
 				_refresh_mode_menu_text()
 			KEY_1, KEY_KP_1, KEY_ENTER:
-				_begin_mode(SessionRulesScript.Mode.SOLO)
-			KEY_2, KEY_KP_2:
-				_begin_mode(SessionRulesScript.Mode.SIMULTANEOUS)
-			KEY_T, KEY_3, KEY_KP_3:
-				_begin_mode(SessionRulesScript.Mode.TWO_HANDED)
-			KEY_4, KEY_KP_4:
 				_begin_mode(SessionRulesScript.Mode.SOLO, "standard")
+			KEY_2, KEY_KP_2:
+				_begin_mode(SessionRulesScript.Mode.SIMULTANEOUS, "standard")
+			KEY_T, KEY_3, KEY_KP_3:
+				_begin_mode(SessionRulesScript.Mode.TWO_HANDED, "standard")
+			KEY_4, KEY_KP_4:
+				_begin_mode(SessionRulesScript.Mode.SOLO, "x")
 		return
 	if event.is_pressed() and event.keycode in [KEY_P, KEY_SPACE] and not game_over and not game_finished:
 		_toggle_pause()
@@ -602,6 +638,11 @@ func _physics_process(_delta: float) -> void:
 	if menu_active or paused_game or player_motion == null or player_sprite == null or game_over or game_finished:
 		return
 	_step_point_popups()
+	if ghost_eat_pause_ticks > 0:
+		ghost_eat_pause_ticks -= 1
+		if ghost_eat_pause_ticks == 0:
+			_finish_ghost_eat_pause()
+		return
 	if level_transition_pending:
 		level_transition_ticks -= 1
 		if level_transition_ticks <= 0:
@@ -755,7 +796,8 @@ func _remove_extra() -> void:
 
 
 func _handle_ghost_collisions() -> void:
-	for motion in ghost_motions:
+	for ghost_index in ghost_motions.size():
+		var motion = ghost_motions[ghost_index]
 		for avatar_index in player_motions.size():
 			if not player_active[avatar_index]:
 				continue
@@ -768,6 +810,8 @@ func _handle_ghost_collisions() -> void:
 			)
 			if result == GhostCollisionScript.GHOST_EATEN:
 				motion.start_returning()
+				ghost_sprites[ghost_index].visible = false
+				ghost_eat_hidden_index = ghost_index
 				var awarded := _award_score_for_avatar(
 					avatar_index,
 					ScoreStateScript.ghost_points(level_number, ghosts_eaten_by_avatar[avatar_index]),
@@ -775,8 +819,9 @@ func _handle_ghost_collisions() -> void:
 				_spawn_point_popup(player_motions[avatar_index].position, awarded)
 				ghosts_eaten_by_avatar[avatar_index] += 1
 				_play_sound("eat_ghost")
+				ghost_eat_pause_ticks = GHOST_EAT_PAUSE_TICKS
 				_update_status()
-				break
+				return
 			elif result == GhostCollisionScript.PLAYER_HIT:
 				var account = _score_for_avatar(avatar_index)
 				account.lives = maxi(account.lives - 1, 0)
@@ -785,6 +830,13 @@ func _handle_ghost_collisions() -> void:
 				_start_player_dying(avatar_index)
 				_update_status()
 				return
+
+
+func _finish_ghost_eat_pause() -> void:
+	if ghost_eat_hidden_index >= 0 and ghost_eat_hidden_index < ghost_sprites.size():
+		ghost_sprites[ghost_eat_hidden_index].visible = true
+		_update_ghost_sprite(ghost_eat_hidden_index)
+	ghost_eat_hidden_index = -1
 
 
 func _start_player_dying(avatar_index: int) -> void:
@@ -863,6 +915,15 @@ func _all_players_out() -> bool:
 	return true
 
 
+func _account_double_score_active(account_index: int) -> bool:
+	for avatar_index in player_effects_by_avatar.size():
+		if session_rules.score_owner(avatar_index) == account_index:
+			var effects = player_effects_by_avatar[avatar_index]
+			if effects != null and effects.double_score:
+				return true
+	return false
+
+
 func _advance_level() -> void:
 	if level_number + 1 >= levels.size():
 		game_finished = true
@@ -901,11 +962,27 @@ func _step_ghost_release() -> void:
 
 func _update_status() -> void:
 	$Hud/Score.text = "%06d" % score_state.score
+	if hud_score_text != null:
+		hud_score_text.position = Vector2(104, 3) if _account_double_score_active(0) else Vector2(72, 3)
+		hud_score_text.show_text("%06d" % score_state.score, 0)
 	if session_rules.mode == SessionRulesScript.Mode.SIMULTANEOUS:
 		$Hud/SecondPlayer/Score.text = "%06d" % score_states[1].score
+		if hud_second_score_text != null:
+			hud_second_score_text.show_text("%06d" % score_states[1].score, 1)
 	elif session_rules.mode == SessionRulesScript.Mode.TWO_HANDED:
 		$Hud/SecondPlayer/Score.text = "SHARED"
+		if hud_second_score_text != null:
+			hud_second_score_text.show_text("SHARED", 1, -2)
 	$Hud/LevelNumber.text = "%d" % (level_number + 1)
+	if hud_level_text != null:
+		hud_level_text.show_text("%d" % (level_number + 1), 2)
+	if hud_double_texts.size() > 0:
+		hud_double_texts[0].visible = _account_double_score_active(0)
+	if hud_double_texts.size() > 1 and score_states.size() > 1:
+		hud_double_texts[1].visible = (
+			session_rules.mode == SessionRulesScript.Mode.SIMULTANEOUS
+			and _account_double_score_active(1)
+		)
 	_update_life_display()
 	if name_entry_active:
 		$Status.text = "Type name, press Enter"
@@ -949,10 +1026,10 @@ func _show_mode_menu() -> void:
 func _refresh_mode_menu_text(master_warning := false) -> void:
 	var warning := "\nMASTER IS SOLO ONLY" if master_warning else ""
 	$ModeMenu/Choices/Text.text = (
-		"1 / Enter   X LEVELS SOLO — arrows or WASD\n"
-		+ "2             X LEVELS TWO PLAYERS — arrows + WASD\n"
-		+ "3 / T         X LEVELS TWO-HANDED — shared score/lives\n"
-		+ "4             STANDARD LEVELS SOLO — patterned backgrounds\n\n"
+		"1 / Enter   STANDARD SOLO — arrows or WASD\n"
+		+ "2             STANDARD TWO PLAYERS — arrows + WASD\n"
+		+ "3 / T         STANDARD TWO-HANDED — shared score/lives\n"
+		+ "4             X LEVELS SOLO — bonus levels\n\n"
 		+ "D changes difficulty: %s\n" % DifficultyRulesScript.label(difficulty).to_upper()
 		+ "P / Space pauses · M music · Esc exits"
 		+ warning

@@ -20,9 +20,8 @@ static func frame_cell(direction: int, animation_frame: int) -> Vector2i:
 			return Vector2i(7 - phase, 1)
 		MazeDirectionScript.UP:
 			return Vector2i(15 - phase, 1)
-	return Vector2i.ZERO
+	return Vector2i(15 - phase, 0)
 
 
 static func region(direction: int, animation_frame: int) -> Rect2:
 	return Rect2(Vector2(frame_cell(direction, animation_frame) * FRAME_SIZE), Vector2(FRAME_SIZE, FRAME_SIZE))
-

@@ -12,6 +12,7 @@ const PlayerMotionScript := preload("res://src/core/player_motion.gd")
 const MazeDirectionScript := preload("res://src/core/direction.gd")
 const PlayerSpriteLayoutScript := preload("res://src/presentation/player_sprite_layout.gd")
 const PelletFieldScript := preload("res://src/core/pellet_field.gd")
+const PelletViewScript := preload("res://src/presentation/pellet_view.gd")
 const ScoreStateScript := preload("res://src/core/score_state.gd")
 const GhostMotionScript := preload("res://src/core/ghost_motion.gd")
 const GhostStateScript := preload("res://src/core/ghost_state.gd")
@@ -26,6 +27,7 @@ const HighScoreStoreScript := preload("res://src/core/high_score_store.gd")
 const WavAudioScript := preload("res://src/import/wav_audio.gd")
 const PointPopupMotionScript := preload("res://src/core/point_popup_motion.gd")
 const DifficultyRulesScript := preload("res://src/core/difficulty_rules.gd")
+const FontTextViewScript := preload("res://src/presentation/font_text_view.gd")
 
 var failures := 0
 
@@ -87,8 +89,10 @@ func _test_tile_alphabet() -> void:
 	_expect("D".unicode_at(0) - "A".unicode_at(0) == 3, "D encodes a horizontal connection")
 	_expect("M".unicode_at(0) - "A".unicode_at(0) == 12, "M encodes a vertical connection")
 	_expect(MazeViewScript.CELL_SIZE == 44.0, "maze presentation uses recovered grid scale")
-	_expect(MazeViewScript.SHADOW_WIDTH > MazeViewScript.OUTER_WALL_WIDTH, "maze shadow sits outside the wall contour")
-	_expect(MazeViewScript.CORRIDOR_WIDTH < MazeViewScript.GLASS_HIGHLIGHT_WIDTH, "maze corridor cuts the glass highlight into wall edges")
+	_expect(MazeViewScript.PATH_HALF_WIDTH == 15.0, "maze boundary renderer preserves recovered corridor half width")
+	_expect(MazeViewScript.NEON_GLOW_WIDTH > MazeViewScript.NEON_FACE_WIDTH, "maze renderer keeps glow wider than neon face")
+	_expect(is_equal_approx(PelletViewScript.SUPER_PELLET_FPS, 6.0), "power pellets animate at the recovered slow loop rate")
+	_expect(FontTextViewScript.GLYPH_SIZE == Vector2i(16, 26), "HUD font uses recovered large glyph grid")
 
 
 func _test_player_motion() -> void:
@@ -133,6 +137,7 @@ func _test_player_motion() -> void:
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.LEFT, 7) == Vector2i(7, 0), "left animation reaches its open frame")
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.RIGHT, 7) == Vector2i(8, 0), "right animation uses the mirrored sheet half")
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.UP, 7) == Vector2i(8, 1), "up animation uses the lower sheet row")
+	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.NONE, 7) == Vector2i(8, 0), "idle player animates as a deliberate right-facing mouth cycle")
 
 
 func _test_pellets_and_score() -> void:
@@ -400,6 +405,14 @@ func _test_original_levels(archive_path: String) -> void:
 					unreachable_cells += 1
 	_expect(unreachable_cells == 0, "every X-level path cell has a loop-free route to ghost home")
 	print("LEVELS: imported %d X levels" % result["levels"].size())
+	var standard_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
+		archive_path, "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist"
+	)
+	_expect(not standard_entry.has("error"), "original Standard level data can be read from the editor bundle")
+	var standard_result: Dictionary = LevelImporterScript.new().parse(standard_entry.get("bytes", PackedByteArray()))
+	_expect(not standard_result.has("error"), "original Standard level plist parses")
+	if not standard_result.has("error"):
+		_expect(standard_result["levels"].size() == 25, "original Standard level set contains 25 levels")
 
 
 func _test_original_sprite(archive_path: String) -> void:
@@ -437,6 +450,20 @@ func _test_original_sprite(archive_path: String) -> void:
 	_expect(not spot_result.has("error"), "original Master spotlight decodes")
 	if not spot_result.has("error"):
 		_expect(spot_result["width"] == 300 and spot_result["height"] == 300, "Master spotlight uses recovered 300-pixel mask")
+	var barrier_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
+		archive_path, "/Contents/Resources/Sprites/barrier.raw"
+	)
+	var barrier_result: Dictionary = RawSpriteScript.new().decode(barrier_entry.get("bytes", PackedByteArray()))
+	_expect(not barrier_result.has("error"), "original ghost-door barrier decodes")
+	if not barrier_result.has("error"):
+		_expect(barrier_result["width"] == 40 and barrier_result["height"] == 8, "ghost-door barrier uses recovered dimensions")
+	var font_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
+		archive_path, "/Contents/Resources/Sprites/font.raw"
+	)
+	var font_result: Dictionary = RawSpriteScript.new().decode(font_entry.get("bytes", PackedByteArray()))
+	_expect(not font_result.has("error"), "original HUD font decodes")
+	if not font_result.has("error"):
+		_expect(font_result["width"] == 880 and font_result["height"] == 104, "HUD font uses recovered large sheet dimensions")
 
 
 func _test_original_audio(archive_path: String) -> void:

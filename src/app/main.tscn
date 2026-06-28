@@ -117,7 +117,7 @@ offset_right = 390.0
 offset_bottom = 126.0
 theme_override_colors/font_color = Color(1, 0.82, 0.24, 1)
 theme_override_font_sizes/font_size = 14
-text = "1 / Enter   X LEVELS SOLO — arrows or WASD\n2             X LEVELS TWO PLAYERS — arrows + WASD\n3 / T         X LEVELS TWO-HANDED — shared score/lives\n4             STANDARD LEVELS SOLO — patterned backgrounds\n\nD changes difficulty: NORMAL\nP / Space pauses · M music · Esc exits"
+text = "1 / Enter   STANDARD SOLO — arrows or WASD\n2             STANDARD TWO PLAYERS — arrows + WASD\n3 / T         STANDARD TWO-HANDED — shared score/lives\n4             X LEVELS SOLO — bonus levels\n\nD changes difficulty: NORMAL\nP / Space pauses · M music · Esc exits"
 horizontal_alignment = 1
 
 [node name="NameEntry" type="CanvasLayer" parent="."]

@@ -1,7 +1,10 @@
 .godot/
+.vscode/
 build/
 dist/
 original/
 *.log
+*.uid
+resource-previews/
 *-preview.png
 *-preview.png.import

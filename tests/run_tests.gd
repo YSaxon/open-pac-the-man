@@ -137,34 +137,6 @@ func _test_maze_subtile_frames() -> void:
 		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_RIGHT,
 		"diagonal southwest opening produces opposite convex subtile frame"
 	)
-	_expect(
-		MazeViewScript.warp_boundary_frames(MazeDirectionScript.UP) == [
-			MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
-			MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
-		],
-		"top warp opening is framed with recovered 13 then 12 pair"
-	)
-	_expect(
-		MazeViewScript.warp_boundary_frames(MazeDirectionScript.DOWN) == [
-			MazeViewScript.FRAME_INSET_TOP_RIGHT,
-			MazeViewScript.FRAME_INSET_TOP_LEFT,
-		],
-		"bottom warp opening is framed with opposing inset pair"
-	)
-	_expect(
-		MazeViewScript.warp_boundary_frames(MazeDirectionScript.LEFT) == [
-			MazeViewScript.FRAME_OUTER_TOP,
-			MazeViewScript.FRAME_OUTER_BOTTOM,
-		],
-		"left warp opening is framed with edge cap pair"
-	)
-	_expect(
-		MazeViewScript.warp_boundary_frames(MazeDirectionScript.RIGHT) == [
-			MazeViewScript.FRAME_OUTER_TOP,
-			MazeViewScript.FRAME_OUTER_BOTTOM,
-		],
-		"right warp opening is framed with edge cap pair"
-	)
 	var random_rows := PackedStringArray([
 		"AKKKKB",
 		"MABACM",
@@ -205,6 +177,7 @@ func _test_maze_subtile_frames() -> void:
 	_expect(t_mismatches == 0, "T-junction blocked subtiles are derived from shared 2x2 surface profiles")
 	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
 	_expect(_count_playable_frame_intrusions(random_rows, frame_grid) == 0, "wall frame grid never draws into playable subtiles")
+	_expect(_count_frame_profile_violations(frame_grid) == 0, "deterministic subtile field has matching cardinal and corner profiles")
 	for frame in [
 		MazeViewScript.FRAME_NONE,
 		MazeViewScript.FRAME_OUTER_TOP_LEFT,
@@ -249,6 +222,24 @@ func _count_frame_profile_violations(frame_grid: Array, skip_outer_boundary: boo
 			var top_profile := MazeViewScript.frame_surface_profile(top_row[sx])
 			var bottom_profile := MazeViewScript.frame_surface_profile(bottom_row[sx])
 			if top_profile[2] != bottom_profile[0] or top_profile[3] != bottom_profile[1]:
+				violations += 1
+	for sy in range(0, max(0, frame_grid.size() - 1)):
+		var top_row: PackedInt32Array = frame_grid[sy]
+		var bottom_row: PackedInt32Array = frame_grid[sy + 1]
+		var width: int = min(top_row.size(), bottom_row.size())
+		for sx in range(0, max(0, width - 1)):
+			if skip_outer_boundary and _touches_outer_boundary_pair(sx, sy, sx + 1, sy + 1, width, height):
+				continue
+			var top_left_profile := MazeViewScript.frame_surface_profile(top_row[sx])
+			var top_right_profile := MazeViewScript.frame_surface_profile(top_row[sx + 1])
+			var bottom_left_profile := MazeViewScript.frame_surface_profile(bottom_row[sx])
+			var bottom_right_profile := MazeViewScript.frame_surface_profile(bottom_row[sx + 1])
+			var corner := top_left_profile[3]
+			if (
+				top_right_profile[2] != corner
+				or bottom_left_profile[1] != corner
+				or bottom_right_profile[0] != corner
+			):
 				violations += 1
 	return violations
 
@@ -595,7 +586,7 @@ func _count_level_frame_violations(levels: Array) -> int:
 	var violations := 0
 	for level in levels:
 		var frame_grid: Array = MazeViewScript.build_wall_frame_grid(level.rows)
-		violations += _count_frame_profile_violations(frame_grid, true)
+		violations += _count_frame_profile_violations(frame_grid)
 		violations += _count_playable_frame_intrusions(level.rows, frame_grid)
 	return violations
 

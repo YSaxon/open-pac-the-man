@@ -271,53 +271,38 @@ static func _is_blocked_subtile(subtiles: Array, sx: int, sy: int) -> bool:
 static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 	if not _is_blocked_subtile(subtiles, sx, sy):
 		return FRAME_NONE
-	var height := subtiles.size()
-	var width := 0 if height == 0 else (subtiles[0] as PackedByteArray).size()
-	if sx > 0 and sy > 0 and sx < width - 1 and sy < height - 1:
-		return frame_for_surface_profile(surface_profile_for_blocked_subtile(subtiles, sx, sy))
-	return _legacy_frame_for_blocked_subtile(subtiles, sx, sy)
-
-
-static func _legacy_frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
-	var height := subtiles.size()
-	var width := 0 if height == 0 else (subtiles[0] as PackedByteArray).size()
-	return tile_frame_for_blocked_neighbors(
-		_is_blocked_subtile(subtiles, sx, sy - 1),
-		_is_blocked_subtile(subtiles, sx + 1, sy),
-		_is_blocked_subtile(subtiles, sx, sy + 1),
-		_is_blocked_subtile(subtiles, sx - 1, sy),
-		_is_blocked_subtile(subtiles, sx - 1, sy - 1),
-		_is_blocked_subtile(subtiles, sx + 1, sy - 1),
-		_is_blocked_subtile(subtiles, sx + 1, sy + 1),
-		_is_blocked_subtile(subtiles, sx - 1, sy + 1),
-		sy == 0,
-		sx == width - 1,
-		sy == height - 1,
-		sx == 0
-	)
+	return frame_for_surface_profile(surface_profile_for_blocked_subtile(subtiles, sx, sy))
 
 
 static func surface_profile_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> PackedByteArray:
 	if not _is_blocked_subtile(subtiles, sx, sy):
 		return PackedByteArray([0, 0, 0, 0])
-	# A quadrant is wall surface only when the four blocked/playable samples
-	# touching that quadrant are all blocked. Neighboring frames compute their
-	# shared edge bits from the same samples, so T-junctions and corners cannot
-	# disagree without the source surface field disagreeing.
-	var north := _is_blocked_subtile(subtiles, sx, sy - 1)
-	var east := _is_blocked_subtile(subtiles, sx + 1, sy)
-	var south := _is_blocked_subtile(subtiles, sx, sy + 1)
-	var west := _is_blocked_subtile(subtiles, sx - 1, sy)
-	var north_west := _is_blocked_subtile(subtiles, sx - 1, sy - 1)
-	var north_east := _is_blocked_subtile(subtiles, sx + 1, sy - 1)
-	var south_east := _is_blocked_subtile(subtiles, sx + 1, sy + 1)
-	var south_west := _is_blocked_subtile(subtiles, sx - 1, sy + 1)
 	return PackedByteArray([
-		1 if north and west and north_west else 0,
-		1 if north and east and north_east else 0,
-		1 if south and west and south_west else 0,
-		1 if south and east and south_east else 0,
+		_wall_surface_vertex(subtiles, sx, sy),
+		_wall_surface_vertex(subtiles, sx + 1, sy),
+		_wall_surface_vertex(subtiles, sx, sy + 1),
+		_wall_surface_vertex(subtiles, sx + 1, sy + 1),
 	])
+
+
+static func _wall_surface_vertex(subtiles: Array, vx: int, vy: int) -> int:
+	# A 2× surface-grid vertex is wall only if every in-bounds subtile touching
+	# that vertex is blocked. Each 11×11 frame is then a pure lookup from its
+	# four vertices. Adjacent frames therefore share the same source bits along
+	# edges and at corners; there are no special cases for T-junctions or warps.
+	if subtiles.is_empty():
+		return 0
+	var height := subtiles.size()
+	var width := (subtiles[0] as PackedByteArray).size()
+	var touched_in_bounds := false
+	for sy in range(vy - 1, vy + 1):
+		for sx in range(vx - 1, vx + 1):
+			if sx < 0 or sy < 0 or sx >= width or sy >= height:
+				continue
+			touched_in_bounds = true
+			if not _is_blocked_subtile(subtiles, sx, sy):
+				return 0
+	return 1 if touched_in_bounds else 0
 
 
 static func frame_surface_profile(frame: int) -> PackedByteArray:
@@ -405,58 +390,7 @@ static func build_wall_frame_grid(rows: PackedStringArray) -> Array:
 			if playable_row[sx] == 0:
 				frame_row[sx] = frame_for_blocked_subtile(playable_subtiles, sx, sy)
 		result.append(frame_row)
-	_apply_warp_boundary_frames(result, rows)
 	return result
-
-
-static func _apply_warp_boundary_frames(frame_grid: Array, rows: PackedStringArray) -> void:
-	var height: int = rows.size()
-	if height <= 0:
-		return
-	var width: int = rows[0].length()
-	for cy in height:
-		var row: String = rows[cy]
-		for cx in row.length():
-			var mask: int = row.unicode_at(cx) - "A".unicode_at(0)
-			if mask <= 0 or mask > 15:
-				continue
-			var base_x: int = cx * SUBTILES_PER_CELL
-			var base_y: int = cy * SUBTILES_PER_CELL
-			if cy == 0 and mask & 4:
-				var top_frames: Array[int] = warp_boundary_frames(4)
-				_set_existing_frame(frame_grid, base_x - 1, base_y, FRAME_OUTER_TOP_RIGHT)
-				_set_existing_frame(frame_grid, base_x, base_y, top_frames[0])
-				_set_existing_frame(frame_grid, base_x + 3, base_y, top_frames[1])
-				_set_existing_frame(frame_grid, base_x + 4, base_y, FRAME_OUTER_TOP_LEFT)
-			if cy == height - 1 and mask & 8:
-				var bottom_frames: Array[int] = warp_boundary_frames(8)
-				_set_existing_frame(frame_grid, base_x - 1, base_y + 3, FRAME_OUTER_BOTTOM_RIGHT)
-				_set_existing_frame(frame_grid, base_x, base_y + 3, bottom_frames[0])
-				_set_existing_frame(frame_grid, base_x + 3, base_y + 3, bottom_frames[1])
-				_set_existing_frame(frame_grid, base_x + 4, base_y + 3, FRAME_OUTER_BOTTOM_LEFT)
-			if cx == 0 and mask & 1:
-				var left_frames: Array[int] = warp_boundary_frames(1)
-				_set_existing_frame(frame_grid, base_x, base_y - 1, FRAME_OUTER_BOTTOM_LEFT)
-				_set_existing_frame(frame_grid, base_x, base_y, left_frames[0])
-				_set_existing_frame(frame_grid, base_x, base_y + 3, left_frames[1])
-				_set_existing_frame(frame_grid, base_x, base_y + 4, FRAME_OUTER_TOP_LEFT)
-			if cx == width - 1 and mask & 2:
-				var right_frames: Array[int] = warp_boundary_frames(2)
-				_set_existing_frame(frame_grid, base_x + 3, base_y - 1, FRAME_OUTER_BOTTOM_RIGHT)
-				_set_existing_frame(frame_grid, base_x + 3, base_y, right_frames[0])
-				_set_existing_frame(frame_grid, base_x + 3, base_y + 3, right_frames[1])
-				_set_existing_frame(frame_grid, base_x + 3, base_y + 4, FRAME_OUTER_TOP_RIGHT)
-
-
-static func _set_existing_frame(frame_grid: Array, sx: int, sy: int, frame: int) -> void:
-	if sy < 0 or sy >= frame_grid.size():
-		return
-	var row: PackedInt32Array = frame_grid[sy]
-	if sx < 0 or sx >= row.size():
-		return
-	if row[sx] == FRAME_NONE:
-		return
-	row[sx] = frame
 
 
 func _stamp_board_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int) -> void:
@@ -474,19 +408,6 @@ func _stamp_tile_walls(wall_image: Image, tile_image: Image, frame_grid: Array) 
 			if row[sx] == FRAME_NONE:
 				continue
 			_blit_subtile(row[sx], wall_image, tile_image, sx, sy)
-
-
-static func warp_boundary_frames(direction: int) -> Array[int]:
-	match direction:
-		4:
-			return [FRAME_INSET_BOTTOM_RIGHT, FRAME_INSET_BOTTOM_LEFT]
-		8:
-			return [FRAME_INSET_TOP_RIGHT, FRAME_INSET_TOP_LEFT]
-		1:
-			return [FRAME_OUTER_TOP, FRAME_OUTER_BOTTOM]
-		2:
-			return [FRAME_OUTER_TOP, FRAME_OUTER_BOTTOM]
-	return []
 
 
 func _blit_subtile(frame: int, wall_image: Image, tile_image: Image, sx: int, sy: int) -> void:

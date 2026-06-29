@@ -59,6 +59,8 @@ deleted casually.
 - `visual-inspect-opposite-convex-subtiles.png` — corrected orientation for the diagonal-only
   convex frames: the renderer uses the opposite corner frame so the curve faces the playable
   diagonal opening.
+- `visual-inspect-warp-boundaries.png` — adds explicit perimeter warp caps so wrap openings are
+  framed with inset pairs instead of appearing as unadorned gaps; top upward tunnels use `13,12`.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -215,8 +217,9 @@ The current frame mapping explicitly tests the recovered interior-box pattern:
 ```
 
 This is likely the correct architecture. Diagonal-only openings are now handled as opposite convex
-outer corner frames. Remaining fidelity issues are local frame-selection details: outer tunnel caps,
-exact board-edge behavior around tunnels, alpha/glass tuning, and possible use of frames 14-20.
+outer corner frames, and perimeter warp openings are explicitly capped with inset pairs. Remaining
+fidelity issues are local frame-selection details around less common board-edge cases, alpha/glass
+tuning, and possible use of frames 14-20.
 
 ## Recovered binary clues
 

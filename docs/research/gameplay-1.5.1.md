@@ -47,8 +47,9 @@ subtiles are framed with `tile`/`tile2` primitives. A single interior 3×3 block
 frames `9 7 10 / 5 11 3 / 12 1 13`. Diagonal-only playable openings select the opposite convex
 outer corner from the `0`, `2`, `6`, and `8` family, which handles the tiny rounded protrusions at
 four-corridor intersections and tight turns. The board perimeter uses the outer frame family
-`0/1/2`, `3/5`, and `6/7/8`. The complete 132-by-88 citadel image and the 40-by-8 `barrier.raw`
-ghost-door sprite are then overlaid.
+`0/1/2`, `3/5`, and `6/7/8`; warp openings on that perimeter are not bare gaps, but are capped by
+inset frame pairs such as `13,12` on top-edge upward tunnels. The complete 132-by-88 citadel image
+and the 40-by-8 `barrier.raw` ghost-door sprite are then overlaid.
 
 ## Player movement
 

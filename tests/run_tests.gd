@@ -133,6 +133,34 @@ func _test_maze_subtile_frames() -> void:
 		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_RIGHT,
 		"diagonal southwest opening produces opposite convex subtile frame"
 	)
+	_expect(
+		MazeViewScript.warp_boundary_frames(MazeDirectionScript.UP) == [
+			MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
+			MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
+		],
+		"top warp opening is framed with recovered 13 then 12 pair"
+	)
+	_expect(
+		MazeViewScript.warp_boundary_frames(MazeDirectionScript.DOWN) == [
+			MazeViewScript.FRAME_INSET_TOP_RIGHT,
+			MazeViewScript.FRAME_INSET_TOP_LEFT,
+		],
+		"bottom warp opening is framed with opposing inset pair"
+	)
+	_expect(
+		MazeViewScript.warp_boundary_frames(MazeDirectionScript.LEFT) == [
+			MazeViewScript.FRAME_INSET_TOP_RIGHT,
+			MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
+		],
+		"left warp opening is framed with opposing inset pair"
+	)
+	_expect(
+		MazeViewScript.warp_boundary_frames(MazeDirectionScript.RIGHT) == [
+			MazeViewScript.FRAME_INSET_TOP_LEFT,
+			MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
+		],
+		"right warp opening is framed with opposing inset pair"
+	)
 	var random_rows := PackedStringArray([
 		"AKKKKB",
 		"MABACM",

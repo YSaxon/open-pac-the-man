@@ -118,20 +118,20 @@ func _test_maze_subtile_frames() -> void:
 				"single blocked island maps to recovered interior tile frame %d,%d" % [x, y]
 			)
 	_expect(
-		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_LEFT,
-		"diagonal northwest opening produces convex subtile frame"
+		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, false) == MazeViewScript.FRAME_OUTER_BOTTOM_RIGHT,
+		"diagonal northwest opening produces opposite convex subtile frame"
 	)
 	_expect(
-		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_RIGHT,
-		"diagonal northeast opening produces convex subtile frame"
+		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_BOTTOM_LEFT,
+		"diagonal northeast opening produces opposite convex subtile frame"
 	)
 	_expect(
-		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_BOTTOM_RIGHT,
-		"diagonal southeast opening produces convex subtile frame"
+		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_LEFT,
+		"diagonal southeast opening produces opposite convex subtile frame"
 	)
 	_expect(
-		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_BOTTOM_LEFT,
-		"diagonal southwest opening produces convex subtile frame"
+		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_RIGHT,
+		"diagonal southwest opening produces opposite convex subtile frame"
 	)
 	var random_rows := PackedStringArray([
 		"AKKKKB",

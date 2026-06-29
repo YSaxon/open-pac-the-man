@@ -220,13 +220,13 @@ static func tile_frame_for_blocked_neighbors(
 	if south_open and east_open:
 		return FRAME_INSET_BOTTOM_RIGHT
 	if north_west_open and north_blocked and west_blocked:
-		return FRAME_OUTER_TOP_LEFT
-	if north_east_open and north_blocked and east_blocked:
-		return FRAME_OUTER_TOP_RIGHT
-	if south_west_open and south_blocked and west_blocked:
-		return FRAME_OUTER_BOTTOM_LEFT
-	if south_east_open and south_blocked and east_blocked:
 		return FRAME_OUTER_BOTTOM_RIGHT
+	if north_east_open and north_blocked and east_blocked:
+		return FRAME_OUTER_BOTTOM_LEFT
+	if south_west_open and south_blocked and west_blocked:
+		return FRAME_OUTER_TOP_RIGHT
+	if south_east_open and south_blocked and east_blocked:
+		return FRAME_OUTER_TOP_LEFT
 	if north_open:
 		return FRAME_OUTER_BOTTOM
 	if south_open:

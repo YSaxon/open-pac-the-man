@@ -54,6 +54,8 @@ deleted casually.
 - `visual-inspect-subtile-full-background.png` — refinement of the above: the background pattern is
   tiled under the whole board, while only blocked/non-playable subtiles receive the primitive
   wall/lightening overlay.
+- `visual-inspect-convex-subtiles.png` — adds diagonal-aware convex frame selection so blocked
+  subtiles with diagonal-only playable openings use frames `0`, `2`, `6`, or `8` instead of fill.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -209,8 +211,9 @@ The current frame mapping explicitly tests the recovered interior-box pattern:
 12 1 13
 ```
 
-This is likely the correct architecture. Remaining fidelity issues are now local frame-selection
-details: outer tunnel caps, diagonal four-corridor junctions, and possible use of frames 14-20.
+This is likely the correct architecture. Diagonal-only openings are now handled as convex outer
+corner frames. Remaining fidelity issues are local frame-selection details: outer tunnel caps, exact
+board-edge behavior around tunnels, alpha/glass tuning, and possible use of frames 14-20.
 
 ## Recovered binary clues
 

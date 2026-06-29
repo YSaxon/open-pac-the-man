@@ -15,8 +15,8 @@ const NEON_FACE_WIDTH := 5.0
 #   0=TL-outer  1=top-edge   2=TR-outer
 #   3=left-edge 4=interior   5=right-edge
 #   6=BL-outer  7=bot-edge   8=BR-outer
-#   9=TL-conc  10=TR-conc   11=fill
-#  12=BL-conc  13=BR-conc   14=fill
+#   9=TL-inset 10=TR-inset 11=fill
+#  12=BL-inset 13=BR-inset 14=fill
 #  15-20 = fill variants (unused here)
 const TILE_COLS := 3
 const TILE_SIZE := 11
@@ -31,11 +31,11 @@ const FRAME_OUTER_RIGHT := 5
 const FRAME_OUTER_BOTTOM_LEFT := 6
 const FRAME_OUTER_BOTTOM := 7
 const FRAME_OUTER_BOTTOM_RIGHT := 8
-const FRAME_INNER_TOP_LEFT := 9
-const FRAME_INNER_TOP_RIGHT := 10
+const FRAME_INSET_TOP_LEFT := 9
+const FRAME_INSET_TOP_RIGHT := 10
 const FRAME_FILL := 11
-const FRAME_INNER_BOTTOM_LEFT := 12
-const FRAME_INNER_BOTTOM_RIGHT := 13
+const FRAME_INSET_BOTTOM_LEFT := 12
+const FRAME_INSET_BOTTOM_RIGHT := 13
 
 var level
 var origin := Vector2.ZERO
@@ -178,6 +178,10 @@ static func tile_frame_for_blocked_neighbors(
 	east_blocked: bool,
 	south_blocked: bool,
 	west_blocked: bool,
+	north_west_blocked: bool = true,
+	north_east_blocked: bool = true,
+	south_east_blocked: bool = true,
+	south_west_blocked: bool = true,
 	at_top: bool = false,
 	at_right: bool = false,
 	at_bottom: bool = false,
@@ -203,14 +207,26 @@ static func tile_frame_for_blocked_neighbors(
 	var east_open := not east_blocked
 	var south_open := not south_blocked
 	var west_open := not west_blocked
+	var north_west_open := not north_west_blocked
+	var north_east_open := not north_east_blocked
+	var south_east_open := not south_east_blocked
+	var south_west_open := not south_west_blocked
 	if north_open and west_open:
-		return FRAME_INNER_TOP_LEFT
+		return FRAME_INSET_TOP_LEFT
 	if north_open and east_open:
-		return FRAME_INNER_TOP_RIGHT
+		return FRAME_INSET_TOP_RIGHT
 	if south_open and west_open:
-		return FRAME_INNER_BOTTOM_LEFT
+		return FRAME_INSET_BOTTOM_LEFT
 	if south_open and east_open:
-		return FRAME_INNER_BOTTOM_RIGHT
+		return FRAME_INSET_BOTTOM_RIGHT
+	if north_west_open and north_blocked and west_blocked:
+		return FRAME_OUTER_TOP_LEFT
+	if north_east_open and north_blocked and east_blocked:
+		return FRAME_OUTER_TOP_RIGHT
+	if south_west_open and south_blocked and west_blocked:
+		return FRAME_OUTER_BOTTOM_LEFT
+	if south_east_open and south_blocked and east_blocked:
+		return FRAME_OUTER_BOTTOM_RIGHT
 	if north_open:
 		return FRAME_OUTER_BOTTOM
 	if south_open:
@@ -261,6 +277,10 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 		_is_blocked_subtile(subtiles, sx + 1, sy),
 		_is_blocked_subtile(subtiles, sx, sy + 1),
 		_is_blocked_subtile(subtiles, sx - 1, sy),
+		_is_blocked_subtile(subtiles, sx - 1, sy - 1),
+		_is_blocked_subtile(subtiles, sx + 1, sy - 1),
+		_is_blocked_subtile(subtiles, sx + 1, sy + 1),
+		_is_blocked_subtile(subtiles, sx - 1, sy + 1),
 		sy == 0,
 		sx == width - 1,
 		sy == height - 1,

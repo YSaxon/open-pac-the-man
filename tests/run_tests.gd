@@ -111,12 +111,16 @@ func _test_maze_subtile_frames() -> void:
 		[MazeViewScript.FRAME_OUTER_RIGHT, MazeViewScript.FRAME_FILL, MazeViewScript.FRAME_OUTER_LEFT],
 		[MazeViewScript.FRAME_INSET_BOTTOM_LEFT, MazeViewScript.FRAME_OUTER_TOP, MazeViewScript.FRAME_INSET_BOTTOM_RIGHT],
 	]
+	var expected_grid: Array = []
+	for expected_row in expected:
+		expected_grid.append(PackedInt32Array(expected_row))
 	for y in 3:
 		for x in 3:
 			_expect(
 				MazeViewScript.frame_for_blocked_subtile(box, x + 1, y + 1) == expected[y][x],
 				"single blocked island maps to recovered interior tile frame %d,%d" % [x, y]
 			)
+	_expect(_count_frame_profile_violations(expected_grid) == 0, "single blocked island has matching 2x2 surface profiles")
 	_expect(
 		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, false) == MazeViewScript.FRAME_OUTER_BOTTOM_RIGHT,
 		"diagonal northwest opening produces opposite convex subtile frame"
@@ -149,17 +153,17 @@ func _test_maze_subtile_frames() -> void:
 	)
 	_expect(
 		MazeViewScript.warp_boundary_frames(MazeDirectionScript.LEFT) == [
-			MazeViewScript.FRAME_INSET_TOP_RIGHT,
-			MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
+			MazeViewScript.FRAME_OUTER_TOP,
+			MazeViewScript.FRAME_OUTER_BOTTOM,
 		],
-		"left warp opening is framed with opposing inset pair"
+		"left warp opening is framed with edge cap pair"
 	)
 	_expect(
 		MazeViewScript.warp_boundary_frames(MazeDirectionScript.RIGHT) == [
-			MazeViewScript.FRAME_INSET_TOP_LEFT,
-			MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
+			MazeViewScript.FRAME_OUTER_TOP,
+			MazeViewScript.FRAME_OUTER_BOTTOM,
 		],
-		"right warp opening is framed with opposing inset pair"
+		"right warp opening is framed with edge cap pair"
 	)
 	var random_rows := PackedStringArray([
 		"AKKKKB",
@@ -179,40 +183,69 @@ func _test_maze_subtile_frames() -> void:
 				invalid_frames += 1
 	_expect(invalid_frames == 0, "deterministic subtile field uses only real recovered wall frames")
 	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
-	var incompatible_horizontal_edges := _count_frame_1_horizontal_violations(frame_grid)
-	_expect(incompatible_horizontal_edges == 0, "horizontal top-edge frame never touches blank horizontally")
+	_expect(_count_playable_frame_intrusions(random_rows, frame_grid) == 0, "wall frame grid never draws into playable subtiles")
+	for frame in [
+		MazeViewScript.FRAME_NONE,
+		MazeViewScript.FRAME_OUTER_TOP_LEFT,
+		MazeViewScript.FRAME_OUTER_TOP,
+		MazeViewScript.FRAME_OUTER_TOP_RIGHT,
+		MazeViewScript.FRAME_OUTER_LEFT,
+		MazeViewScript.FRAME_OUTER_RIGHT,
+		MazeViewScript.FRAME_OUTER_BOTTOM_LEFT,
+		MazeViewScript.FRAME_OUTER_BOTTOM,
+		MazeViewScript.FRAME_OUTER_BOTTOM_RIGHT,
+		MazeViewScript.FRAME_INSET_TOP_LEFT,
+		MazeViewScript.FRAME_INSET_TOP_RIGHT,
+		MazeViewScript.FRAME_FILL,
+		MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
+		MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
+	]:
+		_expect(
+			MazeViewScript.frame_for_surface_profile(MazeViewScript.frame_surface_profile(frame)) == frame,
+			"frame %d round-trips through its logical 2x2 surface profile" % frame
+		)
 
 
-func _count_frame_1_horizontal_violations(frame_grid: Array) -> int:
+func _count_frame_profile_violations(frame_grid: Array, skip_outer_boundary: bool = false) -> int:
 	var violations := 0
+	var height := frame_grid.size()
 	for sy in frame_grid.size():
 		var row: PackedInt32Array = frame_grid[sy]
-		for sx in row.size():
-			if row[sx] != MazeViewScript.FRAME_OUTER_TOP:
+		for sx in range(0, max(0, row.size() - 1)):
+			if skip_outer_boundary and _touches_outer_boundary_pair(sx, sy, sx + 1, sy, row.size(), height):
 				continue
-			if not _is_frame_1_left_neighbor(row, sx - 1) or not _is_frame_1_right_neighbor(row, sx + 1):
+			var left_profile := MazeViewScript.frame_surface_profile(row[sx])
+			var right_profile := MazeViewScript.frame_surface_profile(row[sx + 1])
+			if left_profile[1] != right_profile[0] or left_profile[3] != right_profile[2]:
+				violations += 1
+	for sy in range(0, max(0, frame_grid.size() - 1)):
+		var top_row: PackedInt32Array = frame_grid[sy]
+		var bottom_row: PackedInt32Array = frame_grid[sy + 1]
+		var width: int = min(top_row.size(), bottom_row.size())
+		for sx in width:
+			if skip_outer_boundary and _touches_outer_boundary_pair(sx, sy, sx, sy + 1, width, height):
+				continue
+			var top_profile := MazeViewScript.frame_surface_profile(top_row[sx])
+			var bottom_profile := MazeViewScript.frame_surface_profile(bottom_row[sx])
+			if top_profile[2] != bottom_profile[0] or top_profile[3] != bottom_profile[1]:
 				violations += 1
 	return violations
 
 
-func _is_frame_1_left_neighbor(row: PackedInt32Array, sx: int) -> bool:
-	if sx < 0 or sx >= row.size():
-		return false
-	return row[sx] in [
-		MazeViewScript.FRAME_OUTER_TOP_LEFT,
-		MazeViewScript.FRAME_OUTER_TOP,
-		MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
-	]
+func _touches_outer_boundary_pair(ax: int, ay: int, bx: int, by: int, width: int, height: int) -> bool:
+	return ax <= 0 or bx <= 0 or ay <= 0 or by <= 0 or ax >= width - 1 or bx >= width - 1 or ay >= height - 1 or by >= height - 1
 
 
-func _is_frame_1_right_neighbor(row: PackedInt32Array, sx: int) -> bool:
-	if sx < 0 or sx >= row.size():
-		return false
-	return row[sx] in [
-		MazeViewScript.FRAME_OUTER_TOP,
-		MazeViewScript.FRAME_OUTER_TOP_RIGHT,
-		MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
-	]
+func _count_playable_frame_intrusions(rows: PackedStringArray, frame_grid: Array) -> int:
+	var violations := 0
+	var playable_subtiles: Array = MazeViewScript.build_playable_subtiles(rows)
+	for sy in min(playable_subtiles.size(), frame_grid.size()):
+		var playable_row: PackedByteArray = playable_subtiles[sy]
+		var frame_row: PackedInt32Array = frame_grid[sy]
+		for sx in min(playable_row.size(), frame_row.size()):
+			if playable_row[sx] != 0 and frame_row[sx] != MazeViewScript.FRAME_NONE:
+				violations += 1
+	return violations
 
 
 func _test_player_motion() -> void:
@@ -524,7 +557,7 @@ func _test_original_levels(archive_path: String) -> void:
 				if cell != home and topology.shortest_direction(cell, home) == MazeDirectionScript.NONE:
 					unreachable_cells += 1
 	_expect(unreachable_cells == 0, "every X-level path cell has a loop-free route to ghost home")
-	_expect(_count_level_frame_violations(result["levels"]) == 0, "every X-level maze frame grid satisfies tile adjacency invariants")
+	_expect(_count_level_frame_violations(result["levels"]) == 0, "every X-level maze frame grid satisfies interior adjacency and no-intrusion invariants")
 	print("LEVELS: imported %d X levels" % result["levels"].size())
 	var standard_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		archive_path, "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist"
@@ -534,13 +567,15 @@ func _test_original_levels(archive_path: String) -> void:
 	_expect(not standard_result.has("error"), "original Standard level plist parses")
 	if not standard_result.has("error"):
 		_expect(standard_result["levels"].size() == 25, "original Standard level set contains 25 levels")
-		_expect(_count_level_frame_violations(standard_result["levels"]) == 0, "every Standard maze frame grid satisfies tile adjacency invariants")
+		_expect(_count_level_frame_violations(standard_result["levels"]) == 0, "every Standard maze frame grid satisfies interior adjacency and no-intrusion invariants")
 
 
 func _count_level_frame_violations(levels: Array) -> int:
 	var violations := 0
 	for level in levels:
-		violations += _count_frame_1_horizontal_violations(MazeViewScript.build_wall_frame_grid(level.rows))
+		var frame_grid: Array = MazeViewScript.build_wall_frame_grid(level.rows)
+		violations += _count_frame_profile_violations(frame_grid, true)
+		violations += _count_playable_frame_intrusions(level.rows, frame_grid)
 	return violations
 
 

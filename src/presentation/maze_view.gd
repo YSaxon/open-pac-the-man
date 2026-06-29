@@ -289,6 +289,79 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 	)
 
 
+static func frame_surface_profile(frame: int) -> PackedByteArray:
+	# Four logical surface bits, row-major: top-left, top-right,
+	# bottom-left, bottom-right. 1 means framed/lightened wall surface;
+	# 0 means playable/black surface. This is the non-visual contract used
+	# to validate that adjacent 11×11 tile primitives join coherently.
+	match frame:
+		FRAME_NONE:
+			return PackedByteArray([0, 0, 0, 0])
+		FRAME_OUTER_TOP_LEFT:
+			return PackedByteArray([1, 1, 1, 0])
+		FRAME_OUTER_TOP:
+			return PackedByteArray([1, 1, 0, 0])
+		FRAME_OUTER_TOP_RIGHT:
+			return PackedByteArray([1, 1, 0, 1])
+		FRAME_OUTER_LEFT:
+			return PackedByteArray([1, 0, 1, 0])
+		FRAME_OUTER_RIGHT:
+			return PackedByteArray([0, 1, 0, 1])
+		FRAME_OUTER_BOTTOM_LEFT:
+			return PackedByteArray([1, 0, 1, 1])
+		FRAME_OUTER_BOTTOM:
+			return PackedByteArray([0, 0, 1, 1])
+		FRAME_OUTER_BOTTOM_RIGHT:
+			return PackedByteArray([0, 1, 1, 1])
+		FRAME_INSET_TOP_LEFT:
+			return PackedByteArray([0, 0, 0, 1])
+		FRAME_INSET_TOP_RIGHT:
+			return PackedByteArray([0, 0, 1, 0])
+		FRAME_FILL:
+			return PackedByteArray([1, 1, 1, 1])
+		FRAME_INSET_BOTTOM_LEFT:
+			return PackedByteArray([0, 1, 0, 0])
+		FRAME_INSET_BOTTOM_RIGHT:
+			return PackedByteArray([1, 0, 0, 0])
+	return PackedByteArray([0, 0, 0, 0])
+
+
+static func frame_for_surface_profile(profile: PackedByteArray) -> int:
+	if profile.size() < 4:
+		return FRAME_NONE
+	var key := "%d%d%d%d" % [profile[0], profile[1], profile[2], profile[3]]
+	match key:
+		"0000":
+			return FRAME_NONE
+		"1110":
+			return FRAME_OUTER_TOP_LEFT
+		"1100":
+			return FRAME_OUTER_TOP
+		"1101":
+			return FRAME_OUTER_TOP_RIGHT
+		"1010":
+			return FRAME_OUTER_LEFT
+		"0101":
+			return FRAME_OUTER_RIGHT
+		"1011":
+			return FRAME_OUTER_BOTTOM_LEFT
+		"0011":
+			return FRAME_OUTER_BOTTOM
+		"0111":
+			return FRAME_OUTER_BOTTOM_RIGHT
+		"0001":
+			return FRAME_INSET_TOP_LEFT
+		"0010":
+			return FRAME_INSET_TOP_RIGHT
+		"1111":
+			return FRAME_FILL
+		"0100":
+			return FRAME_INSET_BOTTOM_LEFT
+		"1000":
+			return FRAME_INSET_BOTTOM_RIGHT
+	return FRAME_NONE
+
+
 static func build_wall_frame_grid(rows: PackedStringArray) -> Array:
 	var playable_subtiles := build_playable_subtiles(rows)
 	var result: Array = []
@@ -302,7 +375,6 @@ static func build_wall_frame_grid(rows: PackedStringArray) -> Array:
 				frame_row[sx] = frame_for_blocked_subtile(playable_subtiles, sx, sy)
 		result.append(frame_row)
 	_apply_warp_boundary_frames(result, rows)
-	_repair_frame_adjacency(result)
 	return result
 
 
@@ -321,53 +393,39 @@ static func _apply_warp_boundary_frames(frame_grid: Array, rows: PackedStringArr
 			var base_y: int = cy * SUBTILES_PER_CELL
 			if cy == 0 and mask & 4:
 				var top_frames: Array[int] = warp_boundary_frames(4)
-				_set_frame(frame_grid, base_x + 1, base_y, top_frames[0])
-				_set_frame(frame_grid, base_x + 2, base_y, top_frames[1])
+				_set_existing_frame(frame_grid, base_x - 1, base_y, FRAME_OUTER_TOP_RIGHT)
+				_set_existing_frame(frame_grid, base_x, base_y, top_frames[0])
+				_set_existing_frame(frame_grid, base_x + 3, base_y, top_frames[1])
+				_set_existing_frame(frame_grid, base_x + 4, base_y, FRAME_OUTER_TOP_LEFT)
 			if cy == height - 1 and mask & 8:
 				var bottom_frames: Array[int] = warp_boundary_frames(8)
-				_set_frame(frame_grid, base_x + 1, base_y + 3, bottom_frames[0])
-				_set_frame(frame_grid, base_x + 2, base_y + 3, bottom_frames[1])
+				_set_existing_frame(frame_grid, base_x - 1, base_y + 3, FRAME_OUTER_BOTTOM_RIGHT)
+				_set_existing_frame(frame_grid, base_x, base_y + 3, bottom_frames[0])
+				_set_existing_frame(frame_grid, base_x + 3, base_y + 3, bottom_frames[1])
+				_set_existing_frame(frame_grid, base_x + 4, base_y + 3, FRAME_OUTER_BOTTOM_LEFT)
 			if cx == 0 and mask & 1:
 				var left_frames: Array[int] = warp_boundary_frames(1)
-				_set_frame(frame_grid, base_x, base_y + 1, left_frames[0])
-				_set_frame(frame_grid, base_x, base_y + 2, left_frames[1])
+				_set_existing_frame(frame_grid, base_x, base_y - 1, FRAME_OUTER_BOTTOM_LEFT)
+				_set_existing_frame(frame_grid, base_x, base_y, left_frames[0])
+				_set_existing_frame(frame_grid, base_x, base_y + 3, left_frames[1])
+				_set_existing_frame(frame_grid, base_x, base_y + 4, FRAME_OUTER_TOP_LEFT)
 			if cx == width - 1 and mask & 2:
 				var right_frames: Array[int] = warp_boundary_frames(2)
-				_set_frame(frame_grid, base_x + 3, base_y + 1, right_frames[0])
-				_set_frame(frame_grid, base_x + 3, base_y + 2, right_frames[1])
+				_set_existing_frame(frame_grid, base_x + 3, base_y - 1, FRAME_OUTER_BOTTOM_RIGHT)
+				_set_existing_frame(frame_grid, base_x + 3, base_y, right_frames[0])
+				_set_existing_frame(frame_grid, base_x + 3, base_y + 3, right_frames[1])
+				_set_existing_frame(frame_grid, base_x + 3, base_y + 4, FRAME_OUTER_TOP_RIGHT)
 
 
-static func _set_frame(frame_grid: Array, sx: int, sy: int, frame: int) -> void:
+static func _set_existing_frame(frame_grid: Array, sx: int, sy: int, frame: int) -> void:
 	if sy < 0 or sy >= frame_grid.size():
 		return
 	var row: PackedInt32Array = frame_grid[sy]
 	if sx < 0 or sx >= row.size():
 		return
+	if row[sx] == FRAME_NONE:
+		return
 	row[sx] = frame
-
-
-static func _repair_frame_adjacency(frame_grid: Array) -> void:
-	for sy in frame_grid.size():
-		var row: PackedInt32Array = frame_grid[sy]
-		for sx in row.size():
-			if row[sx] != FRAME_OUTER_TOP:
-				continue
-			if not _frame_1_left_neighbor_ok(row, sx - 1):
-				_set_frame(frame_grid, sx - 1, sy, FRAME_INSET_BOTTOM_LEFT)
-			if not _frame_1_right_neighbor_ok(row, sx + 1):
-				_set_frame(frame_grid, sx + 1, sy, FRAME_INSET_BOTTOM_RIGHT)
-
-
-static func _frame_1_left_neighbor_ok(row: PackedInt32Array, sx: int) -> bool:
-	if sx < 0 or sx >= row.size():
-		return false
-	return row[sx] in [FRAME_OUTER_TOP_LEFT, FRAME_OUTER_TOP, FRAME_INSET_BOTTOM_LEFT]
-
-
-static func _frame_1_right_neighbor_ok(row: PackedInt32Array, sx: int) -> bool:
-	if sx < 0 or sx >= row.size():
-		return false
-	return row[sx] in [FRAME_OUTER_TOP, FRAME_OUTER_TOP_RIGHT, FRAME_INSET_BOTTOM_RIGHT]
 
 
 func _stamp_board_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int) -> void:
@@ -394,9 +452,9 @@ static func warp_boundary_frames(direction: int) -> Array[int]:
 		8:
 			return [FRAME_INSET_TOP_RIGHT, FRAME_INSET_TOP_LEFT]
 		1:
-			return [FRAME_INSET_TOP_RIGHT, FRAME_INSET_BOTTOM_RIGHT]
+			return [FRAME_OUTER_TOP, FRAME_OUTER_BOTTOM]
 		2:
-			return [FRAME_INSET_TOP_LEFT, FRAME_INSET_BOTTOM_LEFT]
+			return [FRAME_OUTER_TOP, FRAME_OUTER_BOTTOM]
 	return []
 
 

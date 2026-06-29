@@ -179,9 +179,30 @@ func _test_maze_subtile_frames() -> void:
 			if row[sx] != 0:
 				continue
 			var frame := MazeViewScript.frame_for_blocked_subtile(subtiles, sx, sy)
-			if frame < 0 or frame > 13:
+			if frame != MazeViewScript.FRAME_NONE and (frame < 0 or frame > 13):
 				invalid_frames += 1
-	_expect(invalid_frames == 0, "deterministic subtile field uses only real recovered wall frames")
+	_expect(invalid_frames == 0, "deterministic subtile field uses only blank or real recovered wall frames")
+	var t_field: Array = []
+	for ignored in 7:
+		var t_row := PackedByteArray()
+		t_row.resize(7)
+		t_row.fill(0)
+		t_field.append(t_row)
+	for y in range(1, 6):
+		t_field[y][3] = 1
+	for x in range(1, 6):
+		t_field[3][x] = 1
+	var t_mismatches := 0
+	for sy in range(1, 6):
+		for sx in range(1, 6):
+			if t_field[sy][sx] != 0:
+				continue
+			var expected_frame := MazeViewScript.frame_for_surface_profile(
+				MazeViewScript.surface_profile_for_blocked_subtile(t_field, sx, sy)
+			)
+			if MazeViewScript.frame_for_blocked_subtile(t_field, sx, sy) != expected_frame:
+				t_mismatches += 1
+	_expect(t_mismatches == 0, "T-junction blocked subtiles are derived from shared 2x2 surface profiles")
 	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
 	_expect(_count_playable_frame_intrusions(random_rows, frame_grid) == 0, "wall frame grid never draws into playable subtiles")
 	for frame in [

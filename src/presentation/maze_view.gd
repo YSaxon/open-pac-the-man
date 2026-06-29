@@ -273,6 +273,14 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 		return FRAME_NONE
 	var height := subtiles.size()
 	var width := 0 if height == 0 else (subtiles[0] as PackedByteArray).size()
+	if sx > 0 and sy > 0 and sx < width - 1 and sy < height - 1:
+		return frame_for_surface_profile(surface_profile_for_blocked_subtile(subtiles, sx, sy))
+	return _legacy_frame_for_blocked_subtile(subtiles, sx, sy)
+
+
+static func _legacy_frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
+	var height := subtiles.size()
+	var width := 0 if height == 0 else (subtiles[0] as PackedByteArray).size()
 	return tile_frame_for_blocked_neighbors(
 		_is_blocked_subtile(subtiles, sx, sy - 1),
 		_is_blocked_subtile(subtiles, sx + 1, sy),
@@ -287,6 +295,29 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 		sy == height - 1,
 		sx == 0
 	)
+
+
+static func surface_profile_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> PackedByteArray:
+	if not _is_blocked_subtile(subtiles, sx, sy):
+		return PackedByteArray([0, 0, 0, 0])
+	# A quadrant is wall surface only when the four blocked/playable samples
+	# touching that quadrant are all blocked. Neighboring frames compute their
+	# shared edge bits from the same samples, so T-junctions and corners cannot
+	# disagree without the source surface field disagreeing.
+	var north := _is_blocked_subtile(subtiles, sx, sy - 1)
+	var east := _is_blocked_subtile(subtiles, sx + 1, sy)
+	var south := _is_blocked_subtile(subtiles, sx, sy + 1)
+	var west := _is_blocked_subtile(subtiles, sx - 1, sy)
+	var north_west := _is_blocked_subtile(subtiles, sx - 1, sy - 1)
+	var north_east := _is_blocked_subtile(subtiles, sx + 1, sy - 1)
+	var south_east := _is_blocked_subtile(subtiles, sx + 1, sy + 1)
+	var south_west := _is_blocked_subtile(subtiles, sx - 1, sy + 1)
+	return PackedByteArray([
+		1 if north and west and north_west else 0,
+		1 if north and east and north_east else 0,
+		1 if south and west and south_west else 0,
+		1 if south and east and south_east else 0,
+	])
 
 
 static func frame_surface_profile(frame: int) -> PackedByteArray:

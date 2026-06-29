@@ -63,6 +63,9 @@ deleted casually.
   framed with inset pairs instead of appearing as unadorned gaps; top upward tunnels use `13,12`.
 - `visual-inspect-profile-adjacency.png` — current checkpoint after adding the logical 2×2 surface
   profile table, moving warp caps off playable subtiles, and adding boundary-opening shoulder caps.
+- `visual-inspect-level2-surface-profile.png` — Standard level 2 checkpoint after switching
+  interior blocked-subtile frame selection to the shared quadrant/surface-profile predicate. This is
+  the reference for T-junction regression work.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -236,6 +239,7 @@ The tests now validate that:
 
 - the single blocked-island pattern has matching 2×2 profiles;
 - every defined frame round-trips through the profile table;
+- a T-shaped playable carve-out selects blocked-subtile frames via the shared 2×2 surface profile;
 - emitted real-level frame grids never draw a wall primitive on a playable subtile;
 - all shipped Standard and X levels satisfy interior cardinal profile adjacency.
 

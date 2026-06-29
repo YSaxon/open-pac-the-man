@@ -61,6 +61,8 @@ deleted casually.
   diagonal opening.
 - `visual-inspect-warp-boundaries.png` — adds explicit perimeter warp caps so wrap openings are
   framed with inset pairs instead of appearing as unadorned gaps; top upward tunnels use `13,12`.
+- `visual-inspect-profile-adjacency.png` — current checkpoint after adding the logical 2×2 surface
+  profile table, moving warp caps off playable subtiles, and adding boundary-opening shoulder caps.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -137,9 +139,9 @@ maze.set_artwork(tile_texture, citadel_texture, barrier_texture, background_text
 maze.show_level(level, Vector2(34, 36))
 ```
 
-Important caveat: `tile_texture` is currently stored by `MazeView`, but the latest procedural mask
-does not actually place the original 11×11 primitive frames. That is likely the core remaining
-fidelity gap.
+Important caveat: `MazeView` now does place original 11×11 primitive frames from `tile.raw` /
+`tile2.raw`, but the frame-selection logic is still independently reconstructed. It is not yet a
+verified port of the original `BuildLevel` placement algorithm.
 
 Also important: `main.gd` should not stamp background sprites across the whole viewport. The latest
 code routes the native background tile into `MazeView`; `MazeView` builds `background_fill_texture`
@@ -217,13 +219,31 @@ The current frame mapping explicitly tests the recovered interior-box pattern:
 ```
 
 This is likely the correct architecture. Diagonal-only openings are now handled as opposite convex
-outer corner frames, and perimeter warp openings are explicitly capped with inset pairs. Remaining
-fidelity issues are local frame-selection details around less common board-edge cases, alpha/glass
-tuning, and possible use of frames 14-20.
+outer corner frames, and perimeter warp openings are explicitly capped without drawing over playable
+tunnel subtiles.
 
-The test suite now validates the emitted frame grid, not just individual examples. In particular it
-checks every shipped Standard and X level to ensure frame `1` never has an incompatible or blank
-horizontal neighbor.
+The current logical model treats every 11×11 primitive as a 2×2 surface-bit profile:
+
+```text
+0  = 1110   1  = 1100   2  = 1101
+3  = 1010   5  = 0101   6  = 1011
+7  = 0011   8  = 0111   9  = 0001
+10 = 0010   11 = 1111   12 = 0100
+13 = 1000   blank = 0000
+```
+
+The tests now validate that:
+
+- the single blocked-island pattern has matching 2×2 profiles;
+- every defined frame round-trips through the profile table;
+- emitted real-level frame grids never draw a wall primitive on a playable subtile;
+- all shipped Standard and X levels satisfy interior cardinal profile adjacency.
+
+Important limitation: the strict profile validator currently skips the outermost board boundary.
+Boundary warp openings are the remaining ambiguous case. A full cardinal+corner invariant over the
+outer boundary still fails around top/bottom/side warp shoulders because the original appears to use
+special multi-tile boundary-opening treatment. Do not treat the current outer-boundary caps as final
+fidelity; they are a cleaner, non-intrusive checkpoint.
 
 ## Recovered binary clues
 

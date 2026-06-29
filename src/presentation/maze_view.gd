@@ -117,8 +117,8 @@ func _ensure_wall_texture() -> void:
 		var tile_image := tile_texture.get_image()
 		if tile_image != null and tile_image.get_width() >= TILE_COLS * TILE_SIZE and tile_image.get_height() >= 7 * TILE_SIZE:
 			var rgba_tile := _as_rgba_alpha(tile_image)
-			_stamp_tile_walls(wall_image, rgba_tile, playable_subtiles)
-			_stamp_warp_boundary_frames(wall_image, rgba_tile)
+			var frame_grid: Array = build_wall_frame_grid(level.rows)
+			_stamp_tile_walls(wall_image, rgba_tile, frame_grid)
 
 	wall_texture = ImageTexture.create_from_image(wall_image)
 	background_fill_texture = ImageTexture.create_from_image(background_fill_image)
@@ -289,6 +289,87 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 	)
 
 
+static func build_wall_frame_grid(rows: PackedStringArray) -> Array:
+	var playable_subtiles := build_playable_subtiles(rows)
+	var result: Array = []
+	for sy in playable_subtiles.size():
+		var playable_row: PackedByteArray = playable_subtiles[sy]
+		var frame_row := PackedInt32Array()
+		frame_row.resize(playable_row.size())
+		frame_row.fill(FRAME_NONE)
+		for sx in playable_row.size():
+			if playable_row[sx] == 0:
+				frame_row[sx] = frame_for_blocked_subtile(playable_subtiles, sx, sy)
+		result.append(frame_row)
+	_apply_warp_boundary_frames(result, rows)
+	_repair_frame_adjacency(result)
+	return result
+
+
+static func _apply_warp_boundary_frames(frame_grid: Array, rows: PackedStringArray) -> void:
+	var height: int = rows.size()
+	if height <= 0:
+		return
+	var width: int = rows[0].length()
+	for cy in height:
+		var row: String = rows[cy]
+		for cx in row.length():
+			var mask: int = row.unicode_at(cx) - "A".unicode_at(0)
+			if mask <= 0 or mask > 15:
+				continue
+			var base_x: int = cx * SUBTILES_PER_CELL
+			var base_y: int = cy * SUBTILES_PER_CELL
+			if cy == 0 and mask & 4:
+				var top_frames: Array[int] = warp_boundary_frames(4)
+				_set_frame(frame_grid, base_x + 1, base_y, top_frames[0])
+				_set_frame(frame_grid, base_x + 2, base_y, top_frames[1])
+			if cy == height - 1 and mask & 8:
+				var bottom_frames: Array[int] = warp_boundary_frames(8)
+				_set_frame(frame_grid, base_x + 1, base_y + 3, bottom_frames[0])
+				_set_frame(frame_grid, base_x + 2, base_y + 3, bottom_frames[1])
+			if cx == 0 and mask & 1:
+				var left_frames: Array[int] = warp_boundary_frames(1)
+				_set_frame(frame_grid, base_x, base_y + 1, left_frames[0])
+				_set_frame(frame_grid, base_x, base_y + 2, left_frames[1])
+			if cx == width - 1 and mask & 2:
+				var right_frames: Array[int] = warp_boundary_frames(2)
+				_set_frame(frame_grid, base_x + 3, base_y + 1, right_frames[0])
+				_set_frame(frame_grid, base_x + 3, base_y + 2, right_frames[1])
+
+
+static func _set_frame(frame_grid: Array, sx: int, sy: int, frame: int) -> void:
+	if sy < 0 or sy >= frame_grid.size():
+		return
+	var row: PackedInt32Array = frame_grid[sy]
+	if sx < 0 or sx >= row.size():
+		return
+	row[sx] = frame
+
+
+static func _repair_frame_adjacency(frame_grid: Array) -> void:
+	for sy in frame_grid.size():
+		var row: PackedInt32Array = frame_grid[sy]
+		for sx in row.size():
+			if row[sx] != FRAME_OUTER_TOP:
+				continue
+			if not _frame_1_left_neighbor_ok(row, sx - 1):
+				_set_frame(frame_grid, sx - 1, sy, FRAME_INSET_BOTTOM_LEFT)
+			if not _frame_1_right_neighbor_ok(row, sx + 1):
+				_set_frame(frame_grid, sx + 1, sy, FRAME_INSET_BOTTOM_RIGHT)
+
+
+static func _frame_1_left_neighbor_ok(row: PackedInt32Array, sx: int) -> bool:
+	if sx < 0 or sx >= row.size():
+		return false
+	return row[sx] in [FRAME_OUTER_TOP_LEFT, FRAME_OUTER_TOP, FRAME_INSET_BOTTOM_LEFT]
+
+
+static func _frame_1_right_neighbor_ok(row: PackedInt32Array, sx: int) -> bool:
+	if sx < 0 or sx >= row.size():
+		return false
+	return row[sx] in [FRAME_OUTER_TOP, FRAME_OUTER_TOP_RIGHT, FRAME_INSET_BOTTOM_RIGHT]
+
+
 func _stamp_board_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int) -> void:
 	for y in VIEWPORT_SIZE.y:
 		for x in VIEWPORT_SIZE.x:
@@ -297,13 +378,13 @@ func _stamp_board_background(background_fill_image: Image, source_background: Im
 			background_fill_image.set_pixel(x, y, source_background.get_pixel(x % bg_w, y % bg_h))
 
 
-func _stamp_tile_walls(wall_image: Image, tile_image: Image, playable_subtiles: Array) -> void:
-	for sy in playable_subtiles.size():
-		var row: PackedByteArray = playable_subtiles[sy]
+func _stamp_tile_walls(wall_image: Image, tile_image: Image, frame_grid: Array) -> void:
+	for sy in frame_grid.size():
+		var row: PackedInt32Array = frame_grid[sy]
 		for sx in row.size():
-			if row[sx] != 0:
+			if row[sx] == FRAME_NONE:
 				continue
-			_blit_subtile(frame_for_blocked_subtile(playable_subtiles, sx, sy), wall_image, tile_image, sx, sy)
+			_blit_subtile(row[sx], wall_image, tile_image, sx, sy)
 
 
 static func warp_boundary_frames(direction: int) -> Array[int]:
@@ -317,37 +398,6 @@ static func warp_boundary_frames(direction: int) -> Array[int]:
 		2:
 			return [FRAME_INSET_TOP_LEFT, FRAME_INSET_BOTTOM_LEFT]
 	return []
-
-
-func _stamp_warp_boundary_frames(wall_image: Image, tile_image: Image) -> void:
-	var height: int = level.rows.size()
-	if height <= 0:
-		return
-	var width: int = level.rows[0].length()
-	for cy in height:
-		var row: String = level.rows[cy]
-		for cx in row.length():
-			var mask: int = row.unicode_at(cx) - "A".unicode_at(0)
-			if mask <= 0 or mask > 15:
-				continue
-			var base_x: int = cx * SUBTILES_PER_CELL
-			var base_y: int = cy * SUBTILES_PER_CELL
-			if cy == 0 and mask & 4:
-				var top_frames: Array[int] = warp_boundary_frames(4)
-				_blit_subtile(top_frames[0], wall_image, tile_image, base_x + 1, base_y)
-				_blit_subtile(top_frames[1], wall_image, tile_image, base_x + 2, base_y)
-			if cy == height - 1 and mask & 8:
-				var bottom_frames: Array[int] = warp_boundary_frames(8)
-				_blit_subtile(bottom_frames[0], wall_image, tile_image, base_x + 1, base_y + 3)
-				_blit_subtile(bottom_frames[1], wall_image, tile_image, base_x + 2, base_y + 3)
-			if cx == 0 and mask & 1:
-				var left_frames: Array[int] = warp_boundary_frames(1)
-				_blit_subtile(left_frames[0], wall_image, tile_image, base_x, base_y + 1)
-				_blit_subtile(left_frames[1], wall_image, tile_image, base_x, base_y + 2)
-			if cx == width - 1 and mask & 2:
-				var right_frames: Array[int] = warp_boundary_frames(2)
-				_blit_subtile(right_frames[0], wall_image, tile_image, base_x + 3, base_y + 1)
-				_blit_subtile(right_frames[1], wall_image, tile_image, base_x + 3, base_y + 2)
 
 
 func _blit_subtile(frame: int, wall_image: Image, tile_image: Image, sx: int, sy: int) -> void:

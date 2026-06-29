@@ -221,6 +221,10 @@ outer corner frames, and perimeter warp openings are explicitly capped with inse
 fidelity issues are local frame-selection details around less common board-edge cases, alpha/glass
 tuning, and possible use of frames 14-20.
 
+The test suite now validates the emitted frame grid, not just individual examples. In particular it
+checks every shipped Standard and X level to ensure frame `1` never has an incompatible or blank
+horizontal neighbor.
+
 ## Recovered binary clues
 
 Known from local disassembly work:

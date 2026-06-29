@@ -168,7 +168,7 @@ func _test_maze_subtile_frames() -> void:
 		"GFDFDF",
 	])
 	var subtiles: Array = MazeViewScript.build_playable_subtiles(random_rows)
-	var invalid := 0
+	var invalid_frames := 0
 	for sy in subtiles.size():
 		var row: PackedByteArray = subtiles[sy]
 		for sx in row.size():
@@ -176,8 +176,43 @@ func _test_maze_subtile_frames() -> void:
 				continue
 			var frame := MazeViewScript.frame_for_blocked_subtile(subtiles, sx, sy)
 			if frame < 0 or frame > 13:
-				invalid += 1
-	_expect(invalid == 0, "deterministic subtile field uses only real recovered wall frames")
+				invalid_frames += 1
+	_expect(invalid_frames == 0, "deterministic subtile field uses only real recovered wall frames")
+	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
+	var incompatible_horizontal_edges := _count_frame_1_horizontal_violations(frame_grid)
+	_expect(incompatible_horizontal_edges == 0, "horizontal top-edge frame never touches blank horizontally")
+
+
+func _count_frame_1_horizontal_violations(frame_grid: Array) -> int:
+	var violations := 0
+	for sy in frame_grid.size():
+		var row: PackedInt32Array = frame_grid[sy]
+		for sx in row.size():
+			if row[sx] != MazeViewScript.FRAME_OUTER_TOP:
+				continue
+			if not _is_frame_1_left_neighbor(row, sx - 1) or not _is_frame_1_right_neighbor(row, sx + 1):
+				violations += 1
+	return violations
+
+
+func _is_frame_1_left_neighbor(row: PackedInt32Array, sx: int) -> bool:
+	if sx < 0 or sx >= row.size():
+		return false
+	return row[sx] in [
+		MazeViewScript.FRAME_OUTER_TOP_LEFT,
+		MazeViewScript.FRAME_OUTER_TOP,
+		MazeViewScript.FRAME_INSET_BOTTOM_LEFT,
+	]
+
+
+func _is_frame_1_right_neighbor(row: PackedInt32Array, sx: int) -> bool:
+	if sx < 0 or sx >= row.size():
+		return false
+	return row[sx] in [
+		MazeViewScript.FRAME_OUTER_TOP,
+		MazeViewScript.FRAME_OUTER_TOP_RIGHT,
+		MazeViewScript.FRAME_INSET_BOTTOM_RIGHT,
+	]
 
 
 func _test_player_motion() -> void:
@@ -489,6 +524,7 @@ func _test_original_levels(archive_path: String) -> void:
 				if cell != home and topology.shortest_direction(cell, home) == MazeDirectionScript.NONE:
 					unreachable_cells += 1
 	_expect(unreachable_cells == 0, "every X-level path cell has a loop-free route to ghost home")
+	_expect(_count_level_frame_violations(result["levels"]) == 0, "every X-level maze frame grid satisfies tile adjacency invariants")
 	print("LEVELS: imported %d X levels" % result["levels"].size())
 	var standard_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		archive_path, "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist"
@@ -498,6 +534,14 @@ func _test_original_levels(archive_path: String) -> void:
 	_expect(not standard_result.has("error"), "original Standard level plist parses")
 	if not standard_result.has("error"):
 		_expect(standard_result["levels"].size() == 25, "original Standard level set contains 25 levels")
+		_expect(_count_level_frame_violations(standard_result["levels"]) == 0, "every Standard maze frame grid satisfies tile adjacency invariants")
+
+
+func _count_level_frame_violations(levels: Array) -> int:
+	var violations := 0
+	for level in levels:
+		violations += _count_frame_1_horizontal_violations(MazeViewScript.build_wall_frame_grid(level.rows))
+	return violations
 
 
 func _test_original_sprite(archive_path: String) -> void:

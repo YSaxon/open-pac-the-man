@@ -6,6 +6,9 @@ const HALF_CELL := CELL_SIZE / 2.0
 const SHADOW_OFFSET := Vector2(2.0, 2.0)
 const HIGHLIGHT_OFFSET := Vector2(-1.25, -1.25)
 const VIEWPORT_SIZE := Vector2i(640, 480)
+const PATH_HALF_WIDTH := 15.0
+const NEON_GLOW_WIDTH := 10.0
+const NEON_FACE_WIDTH := 5.0
 
 # Tile sheet is 33×77 px: 3 columns × 7 rows of 11×11 frames.
 # Frame layout (row-major):
@@ -17,10 +20,22 @@ const VIEWPORT_SIZE := Vector2i(640, 480)
 #  15-20 = fill variants (unused here)
 const TILE_COLS := 3
 const TILE_SIZE := 11
+const SUBTILES_PER_CELL := 4
 
-# Corner frame lookup: index = (nw?1:0)|(ne?2:0)|(sw?4:0)|(se?8:0)
-# -1 means no tile (transparent — skip the blit).
-const CORNER_FRAMES := [-1, 8, 6, 7, 2, 5, -1, 13, 0, -1, 3, 12, 1, 10, 9, -1]
+const FRAME_NONE := -1
+const FRAME_OUTER_TOP_LEFT := 0
+const FRAME_OUTER_TOP := 1
+const FRAME_OUTER_TOP_RIGHT := 2
+const FRAME_OUTER_LEFT := 3
+const FRAME_OUTER_RIGHT := 5
+const FRAME_OUTER_BOTTOM_LEFT := 6
+const FRAME_OUTER_BOTTOM := 7
+const FRAME_OUTER_BOTTOM_RIGHT := 8
+const FRAME_INNER_TOP_LEFT := 9
+const FRAME_INNER_TOP_RIGHT := 10
+const FRAME_FILL := 11
+const FRAME_INNER_BOTTOM_LEFT := 12
+const FRAME_INNER_BOTTOM_RIGHT := 13
 
 var level
 var origin := Vector2.ZERO
@@ -82,27 +97,26 @@ func _ensure_wall_texture() -> void:
 	var source_background: Image = null
 	if background_texture != null:
 		source_background = background_texture.get_image()
+	var playable_subtiles := build_playable_subtiles(level.rows)
 
-	# Background: tile the level texture over ALL pixels inside the level bounds —
-	# both playable corridors and enclosed islands use the same background.
+	# Background: tile the level texture only through the blocked/non-playable
+	# subtile mask. Playable corridors remain untextured.
 	var background_fill_image := Image.create(VIEWPORT_SIZE.x, VIEWPORT_SIZE.y, false, Image.FORMAT_RGBA8)
 	background_fill_image.fill(Color.TRANSPARENT)
 	if source_background != null and source_background.get_width() > 0 and source_background.get_height() > 0:
 		var bg_w := source_background.get_width()
 		var bg_h := source_background.get_height()
-		for y in VIEWPORT_SIZE.y:
-			for x in VIEWPORT_SIZE.x:
-				if _inside_level_bounds(Vector2i(x, y)):
-					background_fill_image.set_pixel(x, y, source_background.get_pixel(x % bg_w, y % bg_h))
+		_stamp_blocked_background(background_fill_image, source_background, bg_w, bg_h, playable_subtiles)
 
-	# Wall: compose from 11×11 tile primitives placed at subcell positions.
+	# Wall: compose from 11×11 tile primitives around blocked/non-playable
+	# subtiles. This renders the obstacle/island field, not the playable graph.
 	var wall_image := Image.create(VIEWPORT_SIZE.x, VIEWPORT_SIZE.y, false, Image.FORMAT_RGBA8)
 	wall_image.fill(Color.TRANSPARENT)
 	if tile_texture != null:
 		var tile_image := tile_texture.get_image()
 		if tile_image != null and tile_image.get_width() >= TILE_COLS * TILE_SIZE and tile_image.get_height() >= 7 * TILE_SIZE:
 			var rgba_tile := _as_rgba_alpha(tile_image)
-			_stamp_tile_walls(wall_image, rgba_tile)
+			_stamp_tile_walls(wall_image, rgba_tile, playable_subtiles)
 
 	wall_texture = ImageTexture.create_from_image(wall_image)
 	background_fill_texture = ImageTexture.create_from_image(background_fill_image)
@@ -123,93 +137,173 @@ func _as_rgba_alpha(img: Image) -> Image:
 	return result
 
 
-func _stamp_tile_walls(wall_image: Image, tile_image: Image) -> void:
-	for cy in level.rows.size():
-		var row: String = level.rows[cy]
-		for cx in row.length():
-			var mask := row.unicode_at(cx) - "A".unicode_at(0)
+static func build_playable_subtiles(rows: PackedStringArray) -> Array:
+	var result: Array = []
+	var height := rows.size() * SUBTILES_PER_CELL
+	var width := 0 if rows.is_empty() else rows[0].length() * SUBTILES_PER_CELL
+	for ignored_y in height:
+		var row := PackedByteArray()
+		row.resize(width)
+		result.append(row)
+	for cy in rows.size():
+		var source_row: String = rows[cy]
+		for cx in source_row.length():
+			var mask := source_row.unicode_at(cx) - "A".unicode_at(0)
 			if mask <= 0 or mask > 15:
 				continue
-			_stamp_cell(wall_image, tile_image, cx, cy, mask)
+			var base_x := cx * SUBTILES_PER_CELL
+			var base_y := cy * SUBTILES_PER_CELL
+			_mark_playable_subtile(result, base_x + 1, base_y + 1)
+			_mark_playable_subtile(result, base_x + 2, base_y + 1)
+			_mark_playable_subtile(result, base_x + 1, base_y + 2)
+			_mark_playable_subtile(result, base_x + 2, base_y + 2)
+			if mask & 1:
+				_mark_playable_subtile(result, base_x, base_y + 1)
+				_mark_playable_subtile(result, base_x, base_y + 2)
+			if mask & 2:
+				_mark_playable_subtile(result, base_x + 3, base_y + 1)
+				_mark_playable_subtile(result, base_x + 3, base_y + 2)
+			if mask & 4:
+				_mark_playable_subtile(result, base_x + 1, base_y)
+				_mark_playable_subtile(result, base_x + 2, base_y)
+			if mask & 8:
+				_mark_playable_subtile(result, base_x + 1, base_y + 3)
+				_mark_playable_subtile(result, base_x + 2, base_y + 3)
+	return result
 
 
-func _stamp_cell(wall_image: Image, tile_image: Image, cx: int, cy: int, mask: int) -> void:
-	var has_up    := (mask & 4) != 0
-	var has_down  := (mask & 8) != 0
-	var has_left  := (mask & 1) != 0
-	var has_right := (mask & 2) != 0
-
-	# Non-corner edge subcells: place straight-edge frame when no connection exists.
-	_blit(-1 if has_up    else 1, wall_image, tile_image, cx, cy, 1, 0)
-	_blit(-1 if has_up    else 1, wall_image, tile_image, cx, cy, 2, 0)
-	_blit(-1 if has_down  else 7, wall_image, tile_image, cx, cy, 1, 3)
-	_blit(-1 if has_down  else 7, wall_image, tile_image, cx, cy, 2, 3)
-	_blit(-1 if has_left  else 3, wall_image, tile_image, cx, cy, 0, 1)
-	_blit(-1 if has_left  else 3, wall_image, tile_image, cx, cy, 0, 2)
-	_blit(-1 if has_right else 5, wall_image, tile_image, cx, cy, 3, 1)
-	_blit(-1 if has_right else 5, wall_image, tile_image, cx, cy, 3, 2)
-
-	# Corner subcells: determined by the four cells sharing each corner point.
-	# Bit encoding for CORNER_FRAMES: bit0=NW, bit1=NE, bit2=SW, bit3=SE.
-	# The current navigable cell occupies one of the four quadrants (shown below).
-
-	# TL corner: NW=(cx-1,cy-1)  NE=(cx,cy-1)  SW=(cx-1,cy)  SE=(cx,cy)=current
-	_blit(
-		CORNER_FRAMES[
-			(1 if _is_open(cx-1,cy-1) else 0)
-			| (2 if _is_open(cx,cy-1) else 0)
-			| (4 if _is_open(cx-1,cy) else 0)
-			| 8
-		],
-		wall_image, tile_image, cx, cy, 0, 0
-	)
-	# TR corner: NW=(cx,cy-1)  NE=(cx+1,cy-1)  SW=(cx,cy)=current  SE=(cx+1,cy)
-	_blit(
-		CORNER_FRAMES[
-			(1 if _is_open(cx,cy-1) else 0)
-			| (2 if _is_open(cx+1,cy-1) else 0)
-			| 4
-			| (8 if _is_open(cx+1,cy) else 0)
-		],
-		wall_image, tile_image, cx, cy, 3, 0
-	)
-	# BL corner: NW=(cx-1,cy)  NE=(cx,cy)=current  SW=(cx-1,cy+1)  SE=(cx,cy+1)
-	_blit(
-		CORNER_FRAMES[
-			(1 if _is_open(cx-1,cy) else 0)
-			| 2
-			| (4 if _is_open(cx-1,cy+1) else 0)
-			| (8 if _is_open(cx,cy+1) else 0)
-		],
-		wall_image, tile_image, cx, cy, 0, 3
-	)
-	# BR corner: NW=(cx,cy)=current  NE=(cx+1,cy)  SW=(cx,cy+1)  SE=(cx+1,cy+1)
-	_blit(
-		CORNER_FRAMES[
-			1
-			| (2 if _is_open(cx+1,cy) else 0)
-			| (4 if _is_open(cx,cy+1) else 0)
-			| (8 if _is_open(cx+1,cy+1) else 0)
-		],
-		wall_image, tile_image, cx, cy, 3, 3
-	)
+static func tile_frame_for_blocked_neighbors(
+	north_blocked: bool,
+	east_blocked: bool,
+	south_blocked: bool,
+	west_blocked: bool,
+	at_top: bool = false,
+	at_right: bool = false,
+	at_bottom: bool = false,
+	at_left: bool = false
+) -> int:
+	if at_top and at_left:
+		return FRAME_OUTER_TOP_LEFT
+	if at_top and at_right:
+		return FRAME_OUTER_TOP_RIGHT
+	if at_bottom and at_left:
+		return FRAME_OUTER_BOTTOM_LEFT
+	if at_bottom and at_right:
+		return FRAME_OUTER_BOTTOM_RIGHT
+	if at_top:
+		return FRAME_OUTER_TOP
+	if at_bottom:
+		return FRAME_OUTER_BOTTOM
+	if at_left:
+		return FRAME_OUTER_LEFT
+	if at_right:
+		return FRAME_OUTER_RIGHT
+	var north_open := not north_blocked
+	var east_open := not east_blocked
+	var south_open := not south_blocked
+	var west_open := not west_blocked
+	if north_open and west_open:
+		return FRAME_INNER_TOP_LEFT
+	if north_open and east_open:
+		return FRAME_INNER_TOP_RIGHT
+	if south_open and west_open:
+		return FRAME_INNER_BOTTOM_LEFT
+	if south_open and east_open:
+		return FRAME_INNER_BOTTOM_RIGHT
+	if north_open:
+		return FRAME_OUTER_BOTTOM
+	if south_open:
+		return FRAME_OUTER_TOP
+	if west_open:
+		return FRAME_OUTER_RIGHT
+	if east_open:
+		return FRAME_OUTER_LEFT
+	return FRAME_FILL
 
 
-func _is_open(cx: int, cy: int) -> bool:
-	if cy < 0 or cy >= level.rows.size():
+static func _mark_playable_subtile(subtiles: Array, sx: int, sy: int) -> void:
+	if sy < 0 or sy >= subtiles.size():
+		return
+	var row: PackedByteArray = subtiles[sy]
+	if sx < 0 or sx >= row.size():
+		return
+	row[sx] = 1
+
+
+static func _is_playable_subtile(subtiles: Array, sx: int, sy: int) -> bool:
+	if sy < 0 or sy >= subtiles.size():
 		return false
-	var row: String = level.rows[cy]
-	if cx < 0 or cx >= row.length():
+	var row: PackedByteArray = subtiles[sy]
+	if sx < 0 or sx >= row.size():
 		return false
-	var m := row.unicode_at(cx) - "A".unicode_at(0)
-	return m > 0 and m <= 15
+	return row[sx] != 0
 
 
-func _blit(frame: int, wall_image: Image, tile_image: Image, cx: int, cy: int, sx: int, sy: int) -> void:
+static func _is_blocked_subtile(subtiles: Array, sx: int, sy: int) -> bool:
+	if subtiles.is_empty():
+		return false
+	if sy < 0 or sy >= subtiles.size():
+		return false
+	var row: PackedByteArray = subtiles[sy]
+	if sx < 0 or sx >= row.size():
+		return false
+	return row[sx] == 0
+
+
+static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
+	if not _is_blocked_subtile(subtiles, sx, sy):
+		return FRAME_NONE
+	var height := subtiles.size()
+	var width := 0 if height == 0 else (subtiles[0] as PackedByteArray).size()
+	return tile_frame_for_blocked_neighbors(
+		_is_blocked_subtile(subtiles, sx, sy - 1),
+		_is_blocked_subtile(subtiles, sx + 1, sy),
+		_is_blocked_subtile(subtiles, sx, sy + 1),
+		_is_blocked_subtile(subtiles, sx - 1, sy),
+		sy == 0,
+		sx == width - 1,
+		sy == height - 1,
+		sx == 0
+	)
+
+
+func _stamp_blocked_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int, playable_subtiles: Array) -> void:
+	for sy in playable_subtiles.size():
+		var row: PackedByteArray = playable_subtiles[sy]
+		for sx in row.size():
+			if row[sx] != 0:
+				continue
+			_fill_subtile_background(background_fill_image, source_background, bg_w, bg_h, sx, sy)
+
+
+func _fill_subtile_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int, sx: int, sy: int) -> void:
+	var origin_px := Vector2i(int(origin.x) + sx * TILE_SIZE, int(origin.y) + sy * TILE_SIZE)
+	for py in TILE_SIZE:
+		for px in TILE_SIZE:
+			var target := origin_px + Vector2i(px, py)
+			if target.x < 0 or target.y < 0 or target.x >= VIEWPORT_SIZE.x or target.y >= VIEWPORT_SIZE.y:
+				continue
+			background_fill_image.set_pixel(
+				target.x,
+				target.y,
+				source_background.get_pixel(target.x % bg_w, target.y % bg_h)
+			)
+
+
+func _stamp_tile_walls(wall_image: Image, tile_image: Image, playable_subtiles: Array) -> void:
+	for sy in playable_subtiles.size():
+		var row: PackedByteArray = playable_subtiles[sy]
+		for sx in row.size():
+			if row[sx] != 0:
+				continue
+			_blit_subtile(frame_for_blocked_subtile(playable_subtiles, sx, sy), wall_image, tile_image, sx, sy)
+
+
+func _blit_subtile(frame: int, wall_image: Image, tile_image: Image, sx: int, sy: int) -> void:
 	if frame < 0:
 		return
 	var src := Rect2i((frame % TILE_COLS) * TILE_SIZE, (frame / TILE_COLS) * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-	var dest := Vector2i(int(origin.x) + cx * 44 + sx * TILE_SIZE, int(origin.y) + cy * 44 + sy * TILE_SIZE)
+	var dest := Vector2i(int(origin.x) + sx * TILE_SIZE, int(origin.y) + sy * TILE_SIZE)
 	if dest.x < 0 or dest.y < 0 or dest.x + TILE_SIZE > VIEWPORT_SIZE.x or dest.y + TILE_SIZE > VIEWPORT_SIZE.y:
 		return
 	wall_image.blit_rect(tile_image, src, dest)

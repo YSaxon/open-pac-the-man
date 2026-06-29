@@ -47,6 +47,10 @@ deleted casually.
 - `visual-inspect-nonplayable-bg.png` — corrected layer model: the level background tile is applied
   only to non-playable regions. This fixes the fundamental tiling-direction mistake but still leaves
   an overly thick/tube-like procedural wall outline.
+- `visual-inspect-subtile-blocked.png` — first subtile-field renderer: each 44 px logical cell is
+  split into 4×4 11 px subtiles, playable corridors are carved out, and `tile.raw` primitives frame
+  the remaining blocked/non-playable field. This is the best current direction, though outer tunnel
+  caps/corner variants still need tuning.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -179,24 +183,30 @@ corridors. This still does not match the original.
 Result: it made the background/tiling placement issue more obvious. The user correctly pointed out
 that the tiling should be on non-playable tiles, not playable ones.
 
-The latest code partially addresses that by removing full-screen background sprites and creating a
-masked `background_fill_texture` only for non-playable pixels. This is a better layer model, but it
-still uses a procedural distance mask rather than the original 11×11 primitive layout.
+The next iteration replaced the procedural distance mask with a 4×4 subtile field per logical maze
+cell. It carves playable corridors out of the subtile grid and stamps original 11×11 primitives on
+the remaining blocked field. This now directly encodes the "tiling belongs to non-playable regions"
+rule.
 
 ## Current `MazeView` model
 
 The latest `MazeView` computes:
 
-- `_wall_segments()` from level mask bits;
-- a per-pixel nearest distance to those segments;
-- `corridor_texture` for pixels inside `PATH_HALF_WIDTH - 2`;
-- `solid_fill_texture` for pixels farther than `PATH_HALF_WIDTH + 5` but within level bounds;
-- `background_fill_texture` for the same non-playable mask, sampling the level PNG tile;
-- `wall_texture` for pixels near `PATH_HALF_WIDTH`.
+- `build_playable_subtiles(level.rows)`, a 4×4 subtile grid per 44 px logical cell;
+- a two-subtile-wide playable center plus two-subtile-wide extensions for allowed directions;
+- `background_fill_texture` only for blocked/non-playable subtiles;
+- `wall_texture` by stamping original 11×11 `tile`/`tile2` frames over those blocked subtiles.
 
-This is useful as a diagnostic scaffold but should not be assumed to be final. The current
-conceptual mistake is that it derives everything from playable corridor centerlines, then tries to
-fake wall shapes. The original appears to draw actual wall/island primitives.
+The current frame mapping explicitly tests the recovered interior-box pattern:
+
+```text
+9  7 10
+5 11  3
+12 1 13
+```
+
+This is likely the correct architecture. Remaining fidelity issues are now local frame-selection
+details: outer tunnel caps, diagonal four-corridor junctions, and possible use of frames 14-20.
 
 ## Recovered binary clues
 

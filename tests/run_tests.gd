@@ -37,6 +37,7 @@ func _initialize() -> void:
 	_test_level_validation()
 	_test_plist_parser()
 	_test_tile_alphabet()
+	_test_maze_subtile_frames()
 	_test_player_motion()
 	_test_pellets_and_score()
 	_test_ghost_motion()
@@ -93,6 +94,46 @@ func _test_tile_alphabet() -> void:
 	_expect(MazeViewScript.NEON_GLOW_WIDTH > MazeViewScript.NEON_FACE_WIDTH, "maze renderer keeps glow wider than neon face")
 	_expect(is_equal_approx(PelletViewScript.SUPER_PELLET_FPS, 6.0), "power pellets animate at the recovered slow loop rate")
 	_expect(FontTextViewScript.GLYPH_SIZE == Vector2i(16, 26), "HUD font uses recovered large glyph grid")
+
+
+func _test_maze_subtile_frames() -> void:
+	var box: Array = []
+	for ignored in 5:
+		var row := PackedByteArray()
+		row.resize(5)
+		row.fill(1)
+		box.append(row)
+	for y in range(1, 4):
+		for x in range(1, 4):
+			box[y][x] = 0
+	var expected := [
+		[MazeViewScript.FRAME_INNER_TOP_LEFT, MazeViewScript.FRAME_OUTER_BOTTOM, MazeViewScript.FRAME_INNER_TOP_RIGHT],
+		[MazeViewScript.FRAME_OUTER_RIGHT, MazeViewScript.FRAME_FILL, MazeViewScript.FRAME_OUTER_LEFT],
+		[MazeViewScript.FRAME_INNER_BOTTOM_LEFT, MazeViewScript.FRAME_OUTER_TOP, MazeViewScript.FRAME_INNER_BOTTOM_RIGHT],
+	]
+	for y in 3:
+		for x in 3:
+			_expect(
+				MazeViewScript.frame_for_blocked_subtile(box, x + 1, y + 1) == expected[y][x],
+				"single blocked island maps to recovered interior tile frame %d,%d" % [x, y]
+			)
+	var random_rows := PackedStringArray([
+		"AKKKKB",
+		"MABACM",
+		"MDFGCM",
+		"GFDFDF",
+	])
+	var subtiles: Array = MazeViewScript.build_playable_subtiles(random_rows)
+	var invalid := 0
+	for sy in subtiles.size():
+		var row: PackedByteArray = subtiles[sy]
+		for sx in row.size():
+			if row[sx] != 0:
+				continue
+			var frame := MazeViewScript.frame_for_blocked_subtile(subtiles, sx, sy)
+			if frame < 0 or frame > 13:
+				invalid += 1
+	_expect(invalid == 0, "deterministic subtile field uses only real recovered wall frames")
 
 
 func _test_player_motion() -> void:

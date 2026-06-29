@@ -39,11 +39,14 @@ and `S` have special citadel/path behavior.
 The `tile` and `tile2` sheets are 33 pixels wide and contain 11-pixel primitive wall pieces;
 their entries are not complete 44-by-44 navigation-cell textures. Treating the character ordinal
 as a sheet frame and scaling that frame to a full cell produces broken, path-covering blocks.
-The rendered board follows the path topology but should not paint a solid black corridor over the
-level texture. Original screenshots show the level/background texture visible through both
-corridors and enclosed islands, with neon wall boundaries above it. The remake therefore draws
-boundary lines offset from each path centerline, then overlays the complete 132-by-88 citadel image
-and the 40-by-8 `barrier.raw` ghost-door sprite.
+The rendered board follows the inverse of the playable path topology: the patterned background and
+11-pixel wall primitives belong to blocked/non-playable subtiles, while playable corridors remain
+dark. Each 44-pixel logical cell is split into four 11-pixel subtiles per axis. Open cells carve a
+two-subtile-wide center corridor plus two-subtile-wide extensions in each allowed direction; the
+remaining blocked subtiles are framed with `tile`/`tile2` primitives. A single interior 3×3 blocked
+island maps to frames `9 7 10 / 5 11 3 / 12 1 13`. The board perimeter uses the outer frame family
+`0/1/2`, `3/5`, and `6/7/8`. The complete 132-by-88 citadel image and the 40-by-8 `barrier.raw`
+ghost-door sprite are then overlaid.
 
 ## Player movement
 

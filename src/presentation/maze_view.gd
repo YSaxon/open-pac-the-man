@@ -99,14 +99,15 @@ func _ensure_wall_texture() -> void:
 		source_background = background_texture.get_image()
 	var playable_subtiles := build_playable_subtiles(level.rows)
 
-	# Background: tile the level texture only through the blocked/non-playable
-	# subtile mask. Playable corridors remain untextured.
+	# Background: tile the level texture across the whole board. Blocked
+	# subtile regions receive the original wall primitive/lightening overlay
+	# below; the background itself is still present under playable corridors.
 	var background_fill_image := Image.create(VIEWPORT_SIZE.x, VIEWPORT_SIZE.y, false, Image.FORMAT_RGBA8)
 	background_fill_image.fill(Color.TRANSPARENT)
 	if source_background != null and source_background.get_width() > 0 and source_background.get_height() > 0:
 		var bg_w := source_background.get_width()
 		var bg_h := source_background.get_height()
-		_stamp_blocked_background(background_fill_image, source_background, bg_w, bg_h, playable_subtiles)
+		_stamp_board_background(background_fill_image, source_background, bg_w, bg_h)
 
 	# Wall: compose from 11×11 tile primitives around blocked/non-playable
 	# subtiles. This renders the obstacle/island field, not the playable graph.
@@ -267,27 +268,12 @@ static func frame_for_blocked_subtile(subtiles: Array, sx: int, sy: int) -> int:
 	)
 
 
-func _stamp_blocked_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int, playable_subtiles: Array) -> void:
-	for sy in playable_subtiles.size():
-		var row: PackedByteArray = playable_subtiles[sy]
-		for sx in row.size():
-			if row[sx] != 0:
+func _stamp_board_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int) -> void:
+	for y in VIEWPORT_SIZE.y:
+		for x in VIEWPORT_SIZE.x:
+			if not _inside_level_bounds(Vector2i(x, y)):
 				continue
-			_fill_subtile_background(background_fill_image, source_background, bg_w, bg_h, sx, sy)
-
-
-func _fill_subtile_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int, sx: int, sy: int) -> void:
-	var origin_px := Vector2i(int(origin.x) + sx * TILE_SIZE, int(origin.y) + sy * TILE_SIZE)
-	for py in TILE_SIZE:
-		for px in TILE_SIZE:
-			var target := origin_px + Vector2i(px, py)
-			if target.x < 0 or target.y < 0 or target.x >= VIEWPORT_SIZE.x or target.y >= VIEWPORT_SIZE.y:
-				continue
-			background_fill_image.set_pixel(
-				target.x,
-				target.y,
-				source_background.get_pixel(target.x % bg_w, target.y % bg_h)
-			)
+			background_fill_image.set_pixel(x, y, source_background.get_pixel(x % bg_w, y % bg_h))
 
 
 func _stamp_tile_walls(wall_image: Image, tile_image: Image, playable_subtiles: Array) -> void:

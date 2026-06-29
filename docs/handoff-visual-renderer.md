@@ -51,6 +51,9 @@ deleted casually.
   split into 4×4 11 px subtiles, playable corridors are carved out, and `tile.raw` primitives frame
   the remaining blocked/non-playable field. This is the best current direction, though outer tunnel
   caps/corner variants still need tuning.
+- `visual-inspect-subtile-full-background.png` — refinement of the above: the background pattern is
+  tiled under the whole board, while only blocked/non-playable subtiles receive the primitive
+  wall/lightening overlay.
 - `tile-frames-grid.png` — contact sheet of recovered 11×11 wall primitive frames from `tile.raw`.
 - `tile-frames-contact.png` — earlier contact sheet for the same tile primitives.
 
@@ -184,9 +187,10 @@ Result: it made the background/tiling placement issue more obvious. The user cor
 that the tiling should be on non-playable tiles, not playable ones.
 
 The next iteration replaced the procedural distance mask with a 4×4 subtile field per logical maze
-cell. It carves playable corridors out of the subtile grid and stamps original 11×11 primitives on
-the remaining blocked field. This now directly encodes the "tiling belongs to non-playable regions"
-rule.
+cell. It renders the background under the full playfield, then carves playable corridors out of the
+subtile grid and stamps original 11×11 primitives on the remaining blocked field. This now directly
+encodes the rule that the wall/island overlay belongs to non-playable regions, even though the
+background image itself remains visible everywhere.
 
 ## Current `MazeView` model
 
@@ -194,7 +198,7 @@ The latest `MazeView` computes:
 
 - `build_playable_subtiles(level.rows)`, a 4×4 subtile grid per 44 px logical cell;
 - a two-subtile-wide playable center plus two-subtile-wide extensions for allowed directions;
-- `background_fill_texture` only for blocked/non-playable subtiles;
+- `background_fill_texture` across the full board bounds;
 - `wall_texture` by stamping original 11×11 `tile`/`tile2` frames over those blocked subtiles.
 
 The current frame mapping explicitly tests the recovered interior-box pattern:

@@ -26,11 +26,12 @@ sprites. Difficulty is session-owned and is not a per-player handicap.
 ## Maze presentation follow-up
 
 The current maze renderer splits each 44-pixel logical cell into a 4×4 field of 11-pixel subtiles.
-Playable routes carve two-subtile-wide dark corridors; the remaining non-playable subtile field is
-filled with the level background and framed with the recovered `tile`/`tile2` primitive frames. This
-replaces the earlier procedural tube/contour renderer and matches the key original layering rule:
-tiling belongs to the wall/island field, not the corridors. `barrier.raw` is rendered over the
-ghost-base entrance, and the HUD uses the recovered `font.raw` sheet.
+The level background is tiled under the full playfield. Playable routes carve two-subtile-wide
+corridors, while the remaining non-playable subtile field is lightened/framed with the recovered
+`tile`/`tile2` primitive frames. This replaces the earlier procedural tube/contour renderer and
+matches the key original layering rule: wall/island treatment belongs to blocked subtiles, not to
+the corridor geometry. `barrier.raw` is rendered over the ghost-base entrance, and the HUD uses the
+recovered `font.raw` sheet.
 
 The remaining fidelity pass should compare side-by-side original captures and tune the layered
 outer-boundary tunnel caps, diagonal four-corridor junctions, alpha/glow treatment, citadel overlay

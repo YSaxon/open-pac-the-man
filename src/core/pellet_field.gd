@@ -31,15 +31,18 @@ func build(level) -> void:
 			if mask <= 0 or mask > 15:
 				continue
 			var center := node_center(cell)
-			pellets[center] = SUPER if super_cells.has(cell) else NORMAL
-			if mask & MazeDirectionScript.RIGHT and not _enters_citadel(
-				cell, MazeDirectionScript.RIGHT, citadel_entry, citadel_cell
-			):
-				pellets[center + Vector2i(HALF_SPACING, 0)] = NORMAL
-			if mask & MazeDirectionScript.DOWN and not _enters_citadel(
-				cell, MazeDirectionScript.DOWN, citadel_entry, citadel_cell
-			):
-				pellets[center + Vector2i(0, HALF_SPACING)] = NORMAL
+			if not _is_perimeter_cell_top_or_left(level.rows, cell):
+				pellets[center] = SUPER if super_cells.has(cell) else NORMAL
+			if not _is_perimeter_cell_right(level.rows, cell):
+				if mask & MazeDirectionScript.RIGHT and not _enters_citadel(
+					cell, MazeDirectionScript.RIGHT, citadel_entry, citadel_cell
+				):
+					pellets[center + Vector2i(HALF_SPACING, 0)] = NORMAL
+			if not _is_perimeter_cell_bottom(level.rows, cell):
+				if mask & MazeDirectionScript.DOWN and not _enters_citadel(
+					cell, MazeDirectionScript.DOWN, citadel_entry, citadel_cell
+				):
+					pellets[center + Vector2i(0, HALF_SPACING)] = NORMAL
 
 
 func collect(player_top_left: Vector2) -> Dictionary:
@@ -64,6 +67,19 @@ func remaining() -> int:
 static func node_center(cell: Vector2i) -> Vector2i:
 	return NODE_ORIGIN + cell * GRID_SPACING
 
+
+static func _is_perimeter_cell_top_or_left(rows: PackedStringArray, cell: Vector2i) -> bool:
+	if rows.is_empty():
+		return false
+	return cell.x < 0 or cell.y < 0 #or cell.x >= rows[0].length()-1 or cell.y >= rows.size()-1
+static func _is_perimeter_cell_bottom(rows: PackedStringArray, cell: Vector2i) -> bool:
+	if rows.is_empty():
+		return false
+	return cell.y >= rows.size()-1
+static func _is_perimeter_cell_right(rows: PackedStringArray, cell: Vector2i) -> bool:
+	if rows.is_empty():
+		return false
+	return cell.x >= rows[0].length()-1
 
 static func _enters_citadel(
 	cell: Vector2i,

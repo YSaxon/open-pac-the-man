@@ -43,6 +43,7 @@ directory.
 | Pac the Man X 1.5.1a | ZIP containing Cocoa `.app` | Verified | Current primary source: `pacx151a.zip`. |
 | Pac the Man X 1.5.1a | Unpacked Cocoa `.app` | Verified | Tested by extracting `pacx151a.zip` and loading the main `.app` bundle. |
 | Pac the Man X 1.2 | ZIP containing older `.app` layout | Partially verified | Resource aliases resolve `Graphics/`, `CustomLevels/`, sprites, X levels, Standard levels, and WAV audio. Music is `.mov` and is not yet wired for playback. |
+| Pac the Man X 1.06 | ZIP containing older top-level `.app` layout | Verified for import | SHA-256 `3eb4c13a6ddd1638b98c2789499ea416569885da612df8f4a9b952109a6192b9`; uses `Graphics/`, `Resources/Levels/`, `Pac the Man Editor.app`, and `.mov` music. |
 | Unidentified older build | ZIP containing older `.app` layout | Verified for import | SHA-256 `9917a17deef385a9e97888d27d843fb6a3743ae59baf1a5fc14d709ee9dbd9c3`; uses `Graphics/`, `CustomLevels/`, and `Pac the Man Editor.app`. |
 | Older/pre-Cocoa versions | ZIP or app/folder | Not yet verified | May use different executable names, resource paths, file formats, or level locations. |
 
@@ -61,6 +62,8 @@ For Pac the Man X 1.2, the importer also accepts these older-layout equivalents:
 
 ```text
 /Contents/Resources/CustomLevels/The X Levels.plist
+/Contents/Resources/Levels/The X Levels.plist
+/Contents/Resources/Levels/Standard Levels.plist
 /Contents/Resources/Graphics/*.raw
 /Contents/Resources/Graphics/Backgrounds/*.png
 /Contents/Resources/Pac the Man Editor.app/Contents/Resources/Levels.plist

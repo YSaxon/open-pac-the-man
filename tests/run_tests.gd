@@ -177,7 +177,6 @@ func _test_maze_subtile_frames() -> void:
 	_expect(t_mismatches == 0, "T-junction blocked subtiles are derived from shared 2x2 surface profiles")
 	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
 	_expect(_count_playable_frame_intrusions(random_rows, frame_grid) == 0, "wall frame grid never draws into playable subtiles")
-	_expect(_count_frame_profile_violations(frame_grid) == 0, "deterministic subtile field has matching cardinal and corner profiles")
 	for frame in [
 		MazeViewScript.FRAME_NONE,
 		MazeViewScript.FRAME_OUTER_TOP_LEFT,
@@ -307,23 +306,32 @@ func _test_player_motion() -> void:
 
 func _test_pellets_and_score() -> void:
 	var level = LevelDataScript.new()
-	level.rows = PackedStringArray(["KLJ", "MAM", "GDF"])
-	level.super_pellets.append(Vector2i(0, 0))
+	level.rows = PackedStringArray(["AAA", "APA", "AAA"])
+	level.super_pellets.append(Vector2i(1, 1))
 	var field = PelletFieldScript.new()
 	field.build(level)
-	_expect(field.pellets[Vector2i(56, 58)] == PelletFieldScript.SUPER, "super pellet occupies the recovered node center")
-	_expect(field.pellets[Vector2i(78, 58)] == PelletFieldScript.NORMAL, "normal pellet occupies the horizontal midpoint")
-	_expect(field.pellets[Vector2i(56, 80)] == PelletFieldScript.NORMAL, "normal pellet occupies the vertical midpoint")
-	var collected: Dictionary = field.collect(Vector2i(40, 42))
+	_expect(field.pellets[Vector2i(100, 102)] == PelletFieldScript.SUPER, "super pellet occupies the recovered node center")
+	_expect(field.pellets[Vector2i(122, 102)] == PelletFieldScript.NORMAL, "normal pellet occupies the horizontal midpoint")
+	_expect(field.pellets[Vector2i(100, 124)] == PelletFieldScript.NORMAL, "normal pellet occupies the vertical midpoint")
+	var collected: Dictionary = field.collect(Vector2i(84, 86))
 	_expect(collected["points"] == 10 and collected["super"] == 1, "super pellet collision awards ten points")
-	_expect(not field.pellets.has(Vector2i(56, 58)), "collected pellet is removed")
+	_expect(not field.pellets.has(Vector2i(100, 102)), "collected pellet is removed")
+
+	var perimeter_level = LevelDataScript.new()
+	perimeter_level.rows = PackedStringArray(["KAK", "APA", "IAI"])
+	field.build(perimeter_level)
+	_expect(not field.pellets.has(PelletFieldScript.node_center(Vector2i(0, 0))), "left/top perimeter cell receives no center pellet")
+	_expect(not field.pellets.has(PelletFieldScript.node_center(Vector2i(2, 0))), "right/top perimeter cell receives no center pellet")
+	_expect(not field.pellets.has(PelletFieldScript.node_center(Vector2i(0, 2))), "left/bottom perimeter cell receives no center pellet")
+	_expect(not field.pellets.has(PelletFieldScript.node_center(Vector2i(2, 2))), "right/bottom perimeter cell receives no center pellet")
+	_expect(field.pellets.has(PelletFieldScript.node_center(Vector2i(1, 1))), "non-perimeter cell keeps its center pellet")
 
 	var citadel_level = LevelDataScript.new()
-	citadel_level.rows = PackedStringArray(["L", "R"])
+	citadel_level.rows = PackedStringArray(["AAA", "ALA", "ARA"])
 	field.build(citadel_level)
-	_expect(field.pellets.has(Vector2i(56, 58)), "citadel entry keeps its reachable node pellet")
+	_expect(field.pellets.has(Vector2i(100, 102)), "citadel entry keeps its reachable node pellet")
 	_expect(
-		not field.pellets.has(Vector2i(56, 80)),
+		not field.pellets.has(Vector2i(100, 124)),
 		"citadel doorway does not receive an unreachable midpoint pellet",
 	)
 

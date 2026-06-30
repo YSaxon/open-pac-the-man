@@ -610,7 +610,7 @@ func _test_original_sprite(archive_path: String) -> void:
 	_expect(not title_result.has("error"), "original 24-bit title sprite decodes")
 	if not title_result.has("error"):
 		_expect(title_result["width"] == 640 and title_result["height"] == 480, "title sprite dimensions match")
-		_expect(title_result["bits_per_pixel"] == 24, "title sprite RGB depth matches")
+		_expect(title_result["bits_per_pixel"] in [24, 32], "title sprite recovered RGB/RGBA depth matches")
 	var points_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		archive_path, "/Contents/Resources/Sprites/points.raw"
 	)

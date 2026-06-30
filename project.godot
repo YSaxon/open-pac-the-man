@@ -5,7 +5,7 @@ config_version=5
 
 [application]
 
-config/name="Maze Engine"
+config/name="Open Pac the Man"
 run/main_scene="res://src/app/main.tscn"
 
 [display]
@@ -21,6 +21,7 @@ window/stretch/mode="canvas_items"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/default_filters/use_nearest_mipmap_filter=false
+textures/vram_compression/import_etc2_astc=true
 
 [physics]
 

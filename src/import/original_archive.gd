@@ -51,11 +51,12 @@ func read_file_by_suffix(path: String, suffix: String) -> Dictionary:
 	var resolved_path := _resolve_path(path)
 	if DirAccess.dir_exists_absolute(resolved_path):
 		var directory_files := _files_for_directory(resolved_path)
-		for file in directory_files:
-			var relative_path: String = file["path"]
-			if relative_path.ends_with(suffix):
-				var bytes := FileAccess.get_file_as_bytes(file["absolute"])
-				return {"path": relative_path, "bytes": bytes}
+		for alternate_suffix in _suffix_alternates(suffix):
+			for file in directory_files:
+				var relative_path: String = file["path"]
+				if relative_path.ends_with(alternate_suffix):
+					var bytes := FileAccess.get_file_as_bytes(file["absolute"])
+					return {"path": relative_path, "bytes": bytes}
 		return {"error": "App/resource entry not found: %s" % suffix}
 
 	var reader: ZIPReader = _readers_by_path.get(resolved_path)
@@ -65,13 +66,39 @@ func read_file_by_suffix(path: String, suffix: String) -> Dictionary:
 		if open_error != OK:
 			return {"error": "Could not open ZIP archive (error %d)" % open_error}
 		_readers_by_path[resolved_path] = reader
-		_files_by_path[resolved_path] = reader.get_files()
+	_files_by_path[resolved_path] = reader.get_files()
 	var files: PackedStringArray = _files_by_path[resolved_path]
-	for file in files:
-		if file.ends_with(suffix):
-			var bytes := reader.read_file(file)
-			return {"path": file, "bytes": bytes}
+	for alternate_suffix in _suffix_alternates(suffix):
+		for file in files:
+			if file.ends_with(alternate_suffix):
+				var bytes := reader.read_file(file)
+				return {"path": file, "bytes": bytes}
 	return {"error": "Archive entry not found: %s" % suffix}
+
+
+func _suffix_alternates(suffix: String) -> PackedStringArray:
+	var alternates := PackedStringArray([suffix])
+	if suffix.begins_with("/Contents/Resources/Sprites/"):
+		alternates.append(suffix.replace("/Contents/Resources/Sprites/", "/Contents/Resources/Graphics/"))
+	if suffix.begins_with("/Contents/Resources/Backgrounds/"):
+		alternates.append(suffix.replace("/Contents/Resources/Backgrounds/", "/Contents/Resources/Graphics/Backgrounds/"))
+	if suffix == "/Contents/Resources/Levels/The X Levels.plist":
+		alternates.append("/Contents/Resources/CustomLevels/The X Levels.plist")
+	if suffix == "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist":
+		alternates.append("/Contents/Resources/Pac the Man Editor.app/Contents/Resources/Levels.plist")
+		alternates.append("/Contents/Resources/Pac the Man Editor.app/Contents/Resources/Standard Levels.plist")
+	return alternates
+
+
+func _any_file_ends_with(files, suffix: String) -> bool:
+	for alternate_suffix in _suffix_alternates(suffix):
+		for file in files:
+			if file is Dictionary:
+				file = file["path"]
+			var file_path: String = file
+			if file_path.ends_with(alternate_suffix):
+				return true
+	return false
 
 
 func _populate_file_report(result: Dictionary, files) -> void:
@@ -91,15 +118,7 @@ func _populate_file_report(result: Dictionary, files) -> void:
 
 	var missing := PackedStringArray()
 	for suffix in REQUIRED_SUFFIXES:
-		var found := false
-		for file in files:
-			if file is Dictionary:
-				file = file["path"]
-			var file_path: String = file
-			if file_path.ends_with(suffix):
-				found = true
-				break
-		if not found:
+		if not _any_file_ends_with(files, suffix):
 			missing.append(suffix)
 	result["missing_required"] = missing
 

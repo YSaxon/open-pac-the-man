@@ -1,4 +1,4 @@
-# Pac the Man X Remake
+# Open Pac the Man
 
 An open-source, Godot-based remake/source-port-style recreation of Pac the Man X.
 
@@ -112,9 +112,9 @@ Local exports use the checked-in Godot export presets:
 
 ```bash
 mkdir -p dist/windows dist/linux dist/macos
-godot --headless --path . --export-release "Windows Desktop" dist/windows/PacTheManXRemake.exe
-godot --headless --path . --export-release "Linux/X11" dist/linux/PacTheManXRemake.x86_64
-godot --headless --path . --export-release "macOS" dist/macos/PacTheManXRemake.zip
+godot --headless --path . --export-release "Windows Desktop" dist/windows/OpenPacTheMan.exe
+godot --headless --path . --export-release "Linux/X11" dist/linux/OpenPacTheMan.x86_64
+godot --headless --path . --export-release "macOS" dist/macos/OpenPacTheMan.zip
 ```
 
 You must install Godot 4.7 export templates before local exporting.

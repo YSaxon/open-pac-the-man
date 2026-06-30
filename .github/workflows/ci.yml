@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -46,18 +46,18 @@ jobs:
         include:
           - name: Windows x86_64
             preset: Windows Desktop
-            output: dist/windows/PacTheManXRemake.exe
-            artifact: PacTheManXRemake-windows-x86_64
+            output: dist/windows/OpenPacTheMan.exe
+            artifact: OpenPacTheMan-windows-x86_64
             artifact_path: dist/windows
           - name: Linux x86_64
             preset: Linux/X11
-            output: dist/linux/PacTheManXRemake.x86_64
-            artifact: PacTheManXRemake-linux-x86_64
+            output: dist/linux/OpenPacTheMan.x86_64
+            artifact: OpenPacTheMan-linux-x86_64
             artifact_path: dist/linux
           - name: macOS universal
             preset: macOS
-            output: dist/macos/PacTheManXRemake.zip
-            artifact: PacTheManXRemake-macos-universal
+            output: dist/macos/OpenPacTheMan.zip
+            artifact: OpenPacTheMan-macos-universal
             artifact_path: dist/macos
 
     steps:

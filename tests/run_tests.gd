@@ -283,6 +283,7 @@ func _test_player_motion() -> void:
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.RIGHT, 7) == Vector2i(8, 0), "right animation uses the mirrored sheet half")
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.UP, 7) == Vector2i(8, 1), "up animation uses the lower sheet row")
 	_expect(PlayerSpriteLayoutScript.frame_cell(MazeDirectionScript.NONE, 7) == Vector2i(8, 0), "idle player animates as a deliberate right-facing mouth cycle")
+	_expect(PlayerSpriteLayoutScript.initial_idle_region() != Rect2(0, 0, 32, 32), "initial player sprite uses idle cycle instead of raw sheet origin")
 
 
 func _test_pellets_and_score() -> void:

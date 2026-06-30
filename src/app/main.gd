@@ -31,6 +31,8 @@ const TICKS_PER_SECOND := 30
 const FRIGHTENED_DURATION_TICKS := 8 * TICKS_PER_SECOND
 const LEVEL_CLEAR_DURATION_TICKS := 2 * TICKS_PER_SECOND
 const GHOST_EAT_PAUSE_TICKS := TICKS_PER_SECOND
+const SPOTLIGHT_Z_INDEX := 100
+const EXTRA_ABOVE_SPOTLIGHT_Z_INDEX := 110
 
 var player_motion
 var player_sprite: Sprite2D
@@ -136,7 +138,8 @@ func _ready() -> void:
 		_play_music("PacManiac")
 	var qa_extra := _argument_value("--qa-extra=")
 	if not qa_extra.is_empty():
-		var forced: Dictionary = extra_spawner.force_spawn(player_start_cell, int(qa_extra))
+		var forced_cell := _argument_cell("--qa-extra-cell=", player_start_cell)
+		var forced: Dictionary = extra_spawner.force_spawn(forced_cell, int(qa_extra))
 		_create_extra(forced["cell"], forced["extra_number"])
 	var qa_points := _argument_value("--qa-points=")
 	if not qa_points.is_empty():
@@ -285,6 +288,16 @@ func _argument_value(prefix: String) -> String:
 
 func _has_argument(value: String) -> bool:
 	return value in OS.get_cmdline_user_args()
+
+
+func _argument_cell(prefix: String, fallback: Vector2i) -> Vector2i:
+	var value := _argument_value(prefix)
+	if value.is_empty():
+		return fallback
+	var parts := value.split(",", false)
+	if parts.size() != 2:
+		return fallback
+	return Vector2i(int(parts[0]), int(parts[1]))
 
 
 func _load_level_pack(requested_pack: String) -> bool:
@@ -444,11 +457,13 @@ func _add_players(source_archive: String, level, topology) -> void:
 		sprite.texture = normal_texture
 		sprite.region_enabled = true
 		# Both player sheets are 16x2 grids of 32-pixel animation frames.
-		sprite.region_rect = Rect2(0, 0, 32, 32)
+		sprite.region_rect = PlayerSpriteLayoutScript.initial_idle_region()
 		sprite.position = Vector2(PlayerMotionScript.pixel_for_cell(starts[avatar_index]) + Vector2i(16, 16))
 		level_root.add_child(sprite)
+		var motion = PlayerMotionScript.new(topology, starts[avatar_index])
+		motion.frame = PlayerSpriteLayoutScript.INITIAL_IDLE_FRAME
 		player_start_cells.append(starts[avatar_index])
-		player_motions.append(PlayerMotionScript.new(topology, starts[avatar_index]))
+		player_motions.append(motion)
 		player_effects_by_avatar.append(PlayerEffectsScript.new())
 		player_sprites.append(sprite)
 		player_active.append(true)
@@ -543,7 +558,7 @@ func _add_spotlight() -> void:
 	if texture == null:
 		return
 	spotlight_view = SpotlightViewScript.new()
-	spotlight_view.z_index = 100
+	spotlight_view.z_index = SPOTLIGHT_Z_INDEX
 	level_root.add_child(spotlight_view)
 	spotlight_view.show_spot(texture)
 	spotlight_view.follow_player(player_motions[0].position)
@@ -649,6 +664,12 @@ func _physics_process(_delta: float) -> void:
 			_advance_level()
 		return
 	if round_start_ticks > 0:
+		for avatar_index in player_motions.size():
+			if player_active[avatar_index]:
+				player_motions[avatar_index].frame += 1
+				_sync_player_sprite(avatar_index)
+		if spotlight_view != null and not player_motions.is_empty():
+			spotlight_view.follow_player(player_motions[0].position)
 		round_start_ticks -= 1
 		if round_start_ticks == 0 and ready_sprite != null:
 			ready_sprite.visible = false
@@ -664,10 +685,7 @@ func _physics_process(_delta: float) -> void:
 		var sprite: Sprite2D = player_sprites[avatar_index]
 		effects.step()
 		motion.step(effects.double_speed)
-		var flash: Texture2D = player_flash_textures[avatar_index]
-		sprite.texture = flash if effects.is_invulnerable() and flash != null else player_normal_textures[avatar_index]
-		sprite.position = motion.position + Vector2(16, 16)
-		sprite.region_rect = PlayerSpriteLayoutScript.region(motion.direction, motion.frame)
+		_sync_player_sprite(avatar_index)
 	if spotlight_view != null and not player_motions.is_empty():
 		spotlight_view.follow_player(player_motions[0].position)
 	for index in ghost_motions.size():
@@ -771,6 +789,16 @@ func _step_extra() -> void:
 		_remove_extra()
 
 
+func _sync_player_sprite(avatar_index: int) -> void:
+	var effects = player_effects_by_avatar[avatar_index]
+	var motion = player_motions[avatar_index]
+	var sprite: Sprite2D = player_sprites[avatar_index]
+	var flash: Texture2D = player_flash_textures[avatar_index]
+	sprite.texture = flash if effects.is_invulnerable() and flash != null else player_normal_textures[avatar_index]
+	sprite.position = motion.position + Vector2(16, 16)
+	sprite.region_rect = PlayerSpriteLayoutScript.region(motion.direction, motion.frame)
+
+
 func _create_extra(cell: Vector2i, number: int) -> void:
 	extra_motion = ExtraMotionScript.new(
 		extra_spawner.topology,
@@ -779,6 +807,7 @@ func _create_extra(cell: Vector2i, number: int) -> void:
 		TICKS_PER_SECOND,
 	)
 	extra_sprite = Sprite2D.new()
+	extra_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
 	extra_sprite.texture = extra_texture
 	extra_sprite.region_enabled = true
 	extra_sprite.region_rect = Rect2(Vector2i(32, number * 32), Vector2i(32, 32))
@@ -897,7 +926,8 @@ func _step_player_dying() -> void:
 		motion.position = Vector2(PlayerMotionScript.pixel_for_cell(player_start_cells[avatar_index]))
 		sprite.position = motion.position + Vector2(16, 16)
 		sprite.texture = player_normal_textures[avatar_index]
-		sprite.region_rect = PlayerSpriteLayoutScript.region(MazeDirectionScript.NONE, 0)
+		motion.frame = PlayerSpriteLayoutScript.INITIAL_IDLE_FRAME
+		sprite.region_rect = PlayerSpriteLayoutScript.initial_idle_region()
 	for index in ghost_motions.size():
 		ghost_motions[index].reset_to_spawn()
 		ghost_sprites[index].visible = true

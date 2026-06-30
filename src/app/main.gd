@@ -116,7 +116,7 @@ func _ready() -> void:
 	level_root = $LevelRoot
 	archive_path = _archive_path()
 	if archive_path.is_empty():
-		$Status.text = "Maze Engine\nPass --archive=/path/to/pacx151a.zip to load original data"
+		$Status.text = "Maze Engine\nPut original data in original/pacx151a.zip or pass --archive=/path/to/Pac the Man X.app"
 		return
 	level_pack = "x" if _argument_value("--level-pack=").to_lower() == "x" else "standard"
 	if not _load_level_pack(level_pack):
@@ -273,9 +273,14 @@ func _archive_path() -> String:
 	var requested := _argument_value("--archive=")
 	if not requested.is_empty():
 		return requested
-	var development_archive := ProjectSettings.globalize_path("res://../clone/pacx151a.zip")
-	if FileAccess.file_exists(development_archive):
-		return development_archive
+	var candidates := [
+		ProjectSettings.globalize_path("res://original/pacx151a.zip"),
+		ProjectSettings.globalize_path("res://original/Pac the Man X.app"),
+		ProjectSettings.globalize_path("res://../clone/pacx151a.zip"),
+	]
+	for candidate in candidates:
+		if FileAccess.file_exists(candidate) or DirAccess.dir_exists_absolute(candidate):
+			return candidate
 	return ""
 
 

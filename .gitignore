@@ -5,6 +5,9 @@ dist/
 original/
 *.log
 *.uid
+*.png.import
+*.jpg.import
+*.jpeg.import
 resource-previews/
 *-preview.png
 *-preview.png.import

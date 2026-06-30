@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.7"
+  GODOT_RELEASE: stable
+  GODOT_TAG: 4.7-stable
+  GODOT_TEMPLATE_DIR: 4.7.stable
+
+jobs:
+  test:
+    name: Headless tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_TAG}_linux.x86_64"
+          sudo mv "Godot_v${GODOT_TAG}_linux.x86_64" /usr/local/bin/godot
+          godot --headless --version
+
+      - name: Run tests without original assets
+        run: godot --headless --path . --script res://tests/run_tests.gd
+
+  export:
+    name: Export ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64
+            preset: Windows Desktop
+            output: dist/windows/PacTheManXRemake.exe
+            artifact: PacTheManXRemake-windows-x86_64
+            artifact_path: dist/windows
+          - name: Linux x86_64
+            preset: Linux/X11
+            output: dist/linux/PacTheManXRemake.x86_64
+            artifact: PacTheManXRemake-linux-x86_64
+            artifact_path: dist/linux
+          - name: macOS universal
+            preset: macOS
+            output: dist/macos/PacTheManXRemake.zip
+            artifact: PacTheManXRemake-macos-universal
+            artifact_path: dist/macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_TAG}_linux.x86_64"
+          sudo mv "Godot_v${GODOT_TAG}_linux.x86_64" /usr/local/bin/godot
+          curl -L -o export_templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_export_templates.tpz"
+          unzip -q export_templates.tpz -d export_templates
+          mkdir -p "${HOME}/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          cp -R export_templates/templates/* "${HOME}/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/"
+          godot --headless --version
+
+      - name: Export
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${{ matrix.output }}")"
+          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.output }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact_path }}

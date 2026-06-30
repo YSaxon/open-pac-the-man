@@ -3,6 +3,12 @@
 build/
 dist/
 original/
+/build-artifacts/
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
 *.log
 *.uid
 *.png.import
@@ -11,4 +17,7 @@ original/
 resource-previews/
 *-preview.png
 *-preview.png.import
+visual-inspect*.png
+tile-frames*.png
+screenshot_of_original_for_comparison.jpg
 buildlevel-tile-disasm*.txt

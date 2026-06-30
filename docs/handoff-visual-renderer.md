@@ -30,10 +30,11 @@ The next best step is probably to recover or reconstruct the original `TGame::Bu
 `AddTileSprite` logic that places 11×11 wall primitives, rather than continuing to tune the
 procedural edge mask by eye.
 
-## Reference screenshots kept locally
+## Reference screenshots
 
-These files are in the repository root. They are useful visual breadcrumbs and should not be
-deleted casually.
+These files are useful visual breadcrumbs, but they are generated/local artifacts and should not be
+committed or kept in the repository root. Regenerate them under `build/visual-artifacts/` when
+needed.
 
 - `visual-inspect.png` — first broken attempt: circular/ring artifacts at nearly every maze node.
 - `visual-inspect-fixed.png` — removed full-circle arcs but left choppy disconnected/dashed walls.
@@ -316,7 +317,7 @@ Run tests:
 Take a screenshot:
 
 ```powershell
-& C:\Users\ysaxon\scoop\apps\godot\current\godot.console.exe --log-file .godot\visual-inspect.log --path . -- --archive=../clone/pacx151a.zip --mode=solo --level-pack=standard --screenshot=C:/Users/ysaxon/Desktop/pactheman/remake/visual-inspect-next.png --screenshot-delay=12
+& C:\Users\ysaxon\scoop\apps\godot\current\godot.console.exe --log-file .godot\visual-inspect.log --path . -- --archive=../clone/pacx151a.zip --mode=solo --level-pack=standard --screenshot=C:/Users/ysaxon/Desktop/pactheman/remake/build/visual-artifacts/visual-inspect-next.png --screenshot-delay=12
 ```
 
 The screenshot command needs GUI/rendering access. In Codex it may require an escalated tool call.

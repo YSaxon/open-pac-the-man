@@ -1,0 +1,175 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update, for example v0.1.0-alpha.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  GODOT_TAG: 4.7-stable
+  GODOT_TEMPLATE_DIR: 4.7.stable
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  test:
+    name: Headless tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_TAG}_linux.x86_64"
+          sudo mv "Godot_v${GODOT_TAG}_linux.x86_64" /usr/local/bin/godot
+          godot --headless --version
+
+      - name: Run tests without original assets
+        run: godot --headless --path . --script res://tests/run_tests.gd
+
+  export:
+    name: Export ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64
+            slug: windows-x86_64
+            preset: Windows Desktop
+            output: dist/windows/OpenPacTheMan.exe
+            package: zip
+          - name: Linux x86_64
+            slug: linux-x86_64
+            preset: Linux/X11
+            output: dist/linux/OpenPacTheMan.x86_64
+            package: tar
+          - name: macOS universal
+            slug: macos-universal
+            preset: macOS
+            output: dist/macos/OpenPacTheMan.zip
+            package: copy-zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_TAG}_linux.x86_64"
+          sudo mv "Godot_v${GODOT_TAG}_linux.x86_64" /usr/local/bin/godot
+          curl -L -o export_templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_export_templates.tpz"
+          unzip -q export_templates.tpz -d export_templates
+          mkdir -p "${HOME}/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          cp -R export_templates/templates/* "${HOME}/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/"
+          godot --headless --version
+
+      - name: Export
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${{ matrix.output }}")"
+          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.output }}"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          asset_base="OpenPacTheMan-${RELEASE_TAG}-${{ matrix.slug }}"
+          case "${{ matrix.package }}" in
+            zip)
+              zip -9 -j "release/${asset_base}.zip" "${{ matrix.output }}"
+              ;;
+            tar)
+              chmod +x "${{ matrix.output }}"
+              tar -czf "release/${asset_base}.tar.gz" -C "$(dirname "${{ matrix.output }}")" "$(basename "${{ matrix.output }}")"
+              ;;
+            copy-zip)
+              cp "${{ matrix.output }}" "release/${asset_base}.zip"
+              ;;
+            *)
+              echo "Unknown package type: ${{ matrix.package }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload packaged build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPacTheMan-${{ matrix.slug }}
+          path: release/*
+
+  publish:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: export
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download packaged builds
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release-files
+          find release-assets -maxdepth 3 -type f -print -exec cp {} release-files/ \;
+          cd release-files
+          sha256sum * > SHA256SUMS.txt
+          ls -la
+
+      - name: Write release notes
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          Alpha release build of Open Pac the Man.
+
+          These builds contain only the open-source remake code. They do not include original Pac the Man X game data, artwork, sounds, music, levels, or binaries. Supply your own original ZIP or `.app` bundle at runtime with `--archive=/path/to/original-data`.
+
+          Supported release assets:
+
+          - Windows x86_64
+          - Linux x86_64
+          - macOS universal
+
+          Checksums are attached as `SHA256SUMS.txt`.
+          NOTES
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "Open Pac the Man ${RELEASE_TAG}" \
+              --notes-file release-notes.md
+            gh release upload "${RELEASE_TAG}" release-files/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" release-files/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --title "Open Pac the Man ${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          fi

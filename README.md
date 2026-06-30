@@ -121,6 +121,21 @@ godot --headless --path . --export-release "macOS" dist/macos/OpenPacTheMan.zip
 
 You must install Godot 4.7 export templates before local exporting.
 
+## Releases
+
+To create a GitHub Release with compiled/exported builds, push a version tag:
+
+```bash
+git tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
+```
+
+The `Release` workflow runs tests, exports Windows/Linux/macOS builds, packages them,
+adds `SHA256SUMS.txt`, and creates or updates the GitHub Release for that tag.
+
+You can also run the `Release` workflow manually from GitHub Actions and provide a tag
+such as `v0.1.0-alpha.1`.
+
 ## Project layout
 
 ```text

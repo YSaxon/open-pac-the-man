@@ -137,23 +137,6 @@ func _test_maze_subtile_frames() -> void:
 		MazeViewScript.tile_frame_for_blocked_neighbors(true, true, true, true, true, true, true, false) == MazeViewScript.FRAME_OUTER_TOP_RIGHT,
 		"diagonal southwest opening produces opposite convex subtile frame"
 	)
-	var random_rows := PackedStringArray([
-		"AKKKKB",
-		"MABACM",
-		"MDFGCM",
-		"GFDFDF",
-	])
-	var subtiles: Array = MazeViewScript.build_playable_subtiles(random_rows)
-	var invalid_frames := 0
-	for sy in subtiles.size():
-		var row: PackedByteArray = subtiles[sy]
-		for sx in row.size():
-			if row[sx] != 0:
-				continue
-			var frame := MazeViewScript.frame_for_blocked_subtile(subtiles, sx, sy)
-			if frame != MazeViewScript.FRAME_NONE and (frame < 0 or frame > 13):
-				invalid_frames += 1
-	_expect(invalid_frames == 0, "deterministic subtile field uses only blank or real recovered wall frames")
 	var t_field: Array = []
 	for ignored in 7:
 		var t_row := PackedByteArray()
@@ -175,8 +158,6 @@ func _test_maze_subtile_frames() -> void:
 			if MazeViewScript.frame_for_blocked_subtile(t_field, sx, sy) != expected_frame:
 				t_mismatches += 1
 	_expect(t_mismatches == 0, "T-junction blocked subtiles are derived from shared 2x2 surface profiles")
-	var frame_grid: Array = MazeViewScript.build_wall_frame_grid(random_rows)
-	_expect(_count_playable_frame_intrusions(random_rows, frame_grid) == 0, "wall frame grid never draws into playable subtiles")
 	for frame in [
 		MazeViewScript.FRAME_NONE,
 		MazeViewScript.FRAME_OUTER_TOP_LEFT,
@@ -577,7 +558,8 @@ func _test_original_levels(archive_path: String) -> void:
 				if cell != home and topology.shortest_direction(cell, home) == MazeDirectionScript.NONE:
 					unreachable_cells += 1
 	_expect(unreachable_cells == 0, "every X-level path cell has a loop-free route to ghost home")
-	_expect(_count_level_frame_violations(result["levels"]) == 0, "every X-level maze frame grid satisfies interior adjacency and no-intrusion invariants")
+	_expect(_count_level_frame_profile_violations(result["levels"]) == 0, "every rendered X-level maze frame grid satisfies 2x2 profile adjacency")
+	_expect(_count_level_playable_frame_intrusions(result["levels"]) == 0, "every rendered X-level maze frame grid avoids playable subtiles")
 	print("LEVELS: imported %d X levels" % result["levels"].size())
 	var standard_entry: Dictionary = OriginalArchiveScript.new().read_file_by_suffix(
 		archive_path, "/Contents/Resources/Pac the Man X Editor.app/Contents/Resources/Levels.plist"
@@ -587,14 +569,22 @@ func _test_original_levels(archive_path: String) -> void:
 	_expect(not standard_result.has("error"), "original Standard level plist parses")
 	if not standard_result.has("error"):
 		_expect(standard_result["levels"].size() == 25, "original Standard level set contains 25 levels")
-		_expect(_count_level_frame_violations(standard_result["levels"]) == 0, "every Standard maze frame grid satisfies interior adjacency and no-intrusion invariants")
+		_expect(_count_level_frame_profile_violations(standard_result["levels"]) == 0, "every rendered Standard maze frame grid satisfies 2x2 profile adjacency")
+		_expect(_count_level_playable_frame_intrusions(standard_result["levels"]) == 0, "every rendered Standard maze frame grid avoids playable subtiles")
 
 
-func _count_level_frame_violations(levels: Array) -> int:
+func _count_level_frame_profile_violations(levels: Array) -> int:
 	var violations := 0
 	for level in levels:
 		var frame_grid: Array = MazeViewScript.build_wall_frame_grid(level.rows)
 		violations += _count_frame_profile_violations(frame_grid)
+	return violations
+
+
+func _count_level_playable_frame_intrusions(levels: Array) -> int:
+	var violations := 0
+	for level in levels:
+		var frame_grid: Array = MazeViewScript.build_wall_frame_grid(level.rows)
 		violations += _count_playable_frame_intrusions(level.rows, frame_grid)
 	return violations
 

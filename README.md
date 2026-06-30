@@ -42,6 +42,8 @@ original/Pac the Man X.app/
 ```
 
 `original/` is ignored by git. Do not commit original game data.
+If your ZIP extracts to a parent folder such as `Pac the Man X/Pac the Man X.app`,
+copy or move the inner `.app` bundle to `original/Pac the Man X.app`.
 
 Run with Godot:
 

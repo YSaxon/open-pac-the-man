@@ -447,6 +447,7 @@ func _add_ready_banner(source_archive: String) -> void:
 	ready_sprite = Sprite2D.new()
 	ready_sprite.texture = ImageTexture.create_from_image(decoded["image"])
 	ready_sprite.position = Vector2(320, 240)
+	ready_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
 	level_root.add_child(ready_sprite)
 
 
@@ -1042,6 +1043,7 @@ func _toggle_pause() -> void:
 		if texture != null:
 			pause_sprite = Sprite2D.new()
 			pause_sprite.texture = texture
+			pause_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
 			pause_sprite.position = Vector2(320, 240)
 			level_root.add_child(pause_sprite)
 	if pause_sprite != null:
@@ -1266,6 +1268,7 @@ func _show_high_scores() -> void:
 		if texture != null:
 			game_over_sprite = Sprite2D.new()
 			game_over_sprite.texture = texture
+			game_over_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
 			game_over_sprite.position = Vector2(320, 115)
 			level_root.add_child(game_over_sprite)
 	var heading := high_score_category.replace("_", " ").to_upper() + " HIGH SCORES"

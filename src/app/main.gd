@@ -33,6 +33,7 @@ const LEVEL_CLEAR_DURATION_TICKS := 2 * TICKS_PER_SECOND
 const GHOST_EAT_PAUSE_TICKS := TICKS_PER_SECOND
 const SPOTLIGHT_Z_INDEX := 100
 const EXTRA_ABOVE_SPOTLIGHT_Z_INDEX := 110
+const EXTRA_ARROW_OFFSET := Vector2(0, -34)
 
 var player_motion
 var player_sprite: Sprite2D
@@ -79,6 +80,8 @@ var extra_texture: Texture2D
 var extra_spawner
 var extra_motion
 var extra_sprite: Sprite2D
+var extra_arrow_texture: Texture2D
+var extra_arrow_sprite: Sprite2D
 var high_scores
 var high_score_category := "solo"
 var score_recorded := false
@@ -256,6 +259,7 @@ func _clear_level() -> void:
 	extra_spawner = null
 	extra_motion = null
 	extra_sprite = null
+	extra_arrow_sprite = null
 	player_sprite = null
 	pellet_field = null
 	pellet_view = null
@@ -568,6 +572,7 @@ func _add_spotlight() -> void:
 	level_root.add_child(spotlight_view)
 	spotlight_view.show_spot(texture)
 	spotlight_view.follow_player(player_motions[0].position)
+	extra_arrow_texture = _load_raw_texture("/Contents/Resources/Sprites/arrow.raw")
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -776,6 +781,8 @@ func _step_extra() -> void:
 	extra_sprite.position = extra_motion.position + Vector2(16, 16)
 	extra_sprite.region_rect = Rect2(extra_motion.animation_frame() * 32, extra_motion.extra_number * 32, 32, 32)
 	extra_sprite.rotation_degrees = extra_motion.rotation_degrees
+	if extra_arrow_sprite != null:
+		extra_arrow_sprite.position = extra_sprite.position + EXTRA_ARROW_OFFSET
 	for avatar_index in player_motions.size():
 		if not player_active[avatar_index] or not extra_motion.collides(player_motions[avatar_index].position):
 			continue
@@ -813,12 +820,17 @@ func _create_extra(cell: Vector2i, number: int) -> void:
 		TICKS_PER_SECOND,
 	)
 	extra_sprite = Sprite2D.new()
-	extra_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
 	extra_sprite.texture = extra_texture
 	extra_sprite.region_enabled = true
 	extra_sprite.region_rect = Rect2(Vector2i(32, number * 32), Vector2i(32, 32))
 	extra_sprite.position = extra_motion.position + Vector2(16, 16)
 	level_root.add_child(extra_sprite)
+	if spotlight_view != null and extra_arrow_texture != null:
+		extra_arrow_sprite = Sprite2D.new()
+		extra_arrow_sprite.z_index = EXTRA_ABOVE_SPOTLIGHT_Z_INDEX
+		extra_arrow_sprite.texture = extra_arrow_texture
+		extra_arrow_sprite.position = extra_sprite.position + EXTRA_ARROW_OFFSET
+		level_root.add_child(extra_arrow_sprite)
 	_play_sound("extra_appear")
 
 
@@ -826,6 +838,9 @@ func _remove_extra() -> void:
 	if extra_sprite != null:
 		extra_sprite.queue_free()
 	extra_sprite = null
+	if extra_arrow_sprite != null:
+		extra_arrow_sprite.queue_free()
+	extra_arrow_sprite = null
 	extra_motion = null
 	extra_spawner.released()
 

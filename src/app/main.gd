@@ -406,7 +406,7 @@ func _setup_hud_font() -> void:
 	for index in 2:
 		var indicator = FontTextViewScript.new()
 		indicator.set_font_texture(hud_font_texture)
-		indicator.show_text("X2", 0 if index == 0 else 1, -2)
+		indicator.show_x2_badge(0 if index == 0 else 1)
 		indicator.visible = false
 		indicator.position = Vector2(68, 3) if index == 0 else Vector2(548, 3)
 		if index == 0:

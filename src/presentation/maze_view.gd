@@ -97,6 +97,8 @@ func _ensure_wall_texture() -> void:
 	var source_background: Image = null
 	if background_texture != null:
 		source_background = background_texture.get_image()
+		if source_background.get_format() != Image.FORMAT_RGBA8:
+			source_background.convert(Image.FORMAT_RGBA8)
 	var playable_subtiles := build_playable_subtiles(level.rows)
 
 	# Background: tile the level texture across the whole board. Blocked
@@ -394,11 +396,27 @@ static func build_wall_frame_grid(rows: PackedStringArray) -> Array:
 
 
 func _stamp_board_background(background_fill_image: Image, source_background: Image, bg_w: int, bg_h: int) -> void:
-	for y in VIEWPORT_SIZE.y:
-		for x in VIEWPORT_SIZE.x:
-			if not _inside_level_bounds(Vector2i(x, y)):
-				continue
-			background_fill_image.set_pixel(x, y, source_background.get_pixel(x % bg_w, y % bg_h))
+	if level.rows.is_empty():
+		return
+	var ox := int(origin.x)
+	var oy := int(origin.y)
+	var end_x := mini(ox + int(level.rows[0].length() * CELL_SIZE), VIEWPORT_SIZE.x)
+	var end_y := mini(oy + int(level.rows.size() * CELL_SIZE), VIEWPORT_SIZE.y)
+	# Tile the background in bg-sized blocks via blit_rect instead of a per-pixel
+	# get/set loop, which cost ~300K GDScript calls (measured ~190ms) per level load.
+	var ty := oy
+	while ty < end_y:
+		var src_y := ty % bg_h
+		var block_h := mini(bg_h - src_y, end_y - ty)
+		var tx := ox
+		while tx < end_x:
+			var src_x := tx % bg_w
+			var block_w := mini(bg_w - src_x, end_x - tx)
+			background_fill_image.blit_rect(
+				source_background, Rect2i(src_x, src_y, block_w, block_h), Vector2i(tx, ty)
+			)
+			tx += block_w
+		ty += block_h
 
 
 func _stamp_tile_walls(wall_image: Image, tile_image: Image, frame_grid: Array) -> void:
@@ -418,18 +436,6 @@ func _blit_subtile(frame: int, wall_image: Image, tile_image: Image, sx: int, sy
 	if dest.x < 0 or dest.y < 0 or dest.x + TILE_SIZE > VIEWPORT_SIZE.x or dest.y + TILE_SIZE > VIEWPORT_SIZE.y:
 		return
 	wall_image.blit_rect(tile_image, src, dest)
-
-
-func _inside_level_bounds(point: Vector2i) -> bool:
-	if level.rows.is_empty():
-		return false
-	var size := Vector2(level.rows[0].length(), level.rows.size()) * CELL_SIZE
-	return (
-		point.x >= int(origin.x)
-		and point.y >= int(origin.y)
-		and point.x < int(origin.x + size.x)
-		and point.y < int(origin.y + size.y)
-	)
 
 
 func _draw_citadel() -> void:

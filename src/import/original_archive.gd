@@ -66,7 +66,8 @@ func read_file_by_suffix(path: String, suffix: String) -> Dictionary:
 		if open_error != OK:
 			return {"error": "Could not open ZIP archive (error %d)" % open_error}
 		_readers_by_path[resolved_path] = reader
-	_files_by_path[resolved_path] = reader.get_files()
+	if not _files_by_path.has(resolved_path):
+		_files_by_path[resolved_path] = reader.get_files()
 	var files: PackedStringArray = _files_by_path[resolved_path]
 	for alternate_suffix in _suffix_alternates(suffix):
 		for file in files:
